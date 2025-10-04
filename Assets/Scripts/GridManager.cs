@@ -8,7 +8,7 @@ public class GridManager : MonoBehaviour
 
     public GameObject[,] gridArray;
 
-    void Start()
+    void Update()
     {
         gridArray = new GameObject[width, height];
         for (int x = 0; x < width; x++)
@@ -20,4 +20,5 @@ public class GridManager : MonoBehaviour
             }
         }
     }
+    
 }
