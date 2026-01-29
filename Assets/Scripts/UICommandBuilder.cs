@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -7,13 +8,16 @@ using UnityEngine.UI;
 public class UICommandBuilder : MonoBehaviour
 {
     [Header("Refs")]
-    public GameController game;   // перетащи сюда объект GameController
+    public GameController game;
 
     [Header("UI")]
     public TMP_InputField commandInput;
     public Button runButton;
     public Button resetButton;
-    public Button upBtn, downBtn, leftBtn, rightBtn, waitBtn;
+    public Button upBtn;
+    public Button downBtn;
+    public Button leftBtn;
+    public Button rightBtn;
 
     [Header("Feedback (optional)")]
     public TextMeshProUGUI statusText;
@@ -22,20 +26,43 @@ public class UICommandBuilder : MonoBehaviour
 
     void Start()
     {
-        upBtn.onClick.AddListener(()=> Add(Command.Up));
-        downBtn.onClick.AddListener(()=> Add(Command.Down));
-        leftBtn.onClick.AddListener(()=> Add(Command.Left));
-        rightBtn.onClick.AddListener(()=> Add(Command.Right));
-        waitBtn.onClick.AddListener(()=> Add(Command.Wait));
+        // 1) Фикс "слетающего" wrapping: настраиваем через TMP_InputField, а не руками в дочернем TextInput
+        ApplyInputWrapping();
 
+        // Кнопки команд
+        upBtn.onClick.AddListener(() => Add(Command.Up));
+        downBtn.onClick.AddListener(() => Add(Command.Down));
+        leftBtn.onClick.AddListener(() => Add(Command.Left));
+        rightBtn.onClick.AddListener(() => Add(Command.Right));
+
+        // Run/Reset
         runButton.onClick.AddListener(Run);
         resetButton.onClick.AddListener(ResetLevel);
 
+        // В начале всё доступно
+        SetInputLocked(false);
         SetStatus("Введите команды и нажмите Run.");
+    }
+
+    void ApplyInputWrapping()
+    {
+        if (commandInput == null) return;
+
+        // Многострочный ввод (чтобы переносы реально работали)
+        commandInput.lineType = TMP_InputField.LineType.MultiLineNewline;
+
+        // Включаем перенос слов и не режем текст
+        if (commandInput.textComponent != null)
+        {
+            commandInput.textComponent.enableWordWrapping = true;
+            commandInput.textComponent.overflowMode = TextOverflowModes.Overflow;
+        }
     }
 
     void Add(Command c)
     {
+        if (!commandInput.interactable) return; // если заблокировано — не добавляем
+
         _queue.Add(c);
         SyncInputFromQueue();
     }
@@ -51,8 +78,7 @@ public class UICommandBuilder : MonoBehaviour
         Command.Down => "DOWN",
         Command.Left => "LEFT",
         Command.Right => "RIGHT",
-        Command.Wait => "WAIT",
-        _ => "WAIT"
+        _ => ""
     };
 
     List<Command> ParseInput()
@@ -60,6 +86,7 @@ public class UICommandBuilder : MonoBehaviour
         var text = commandInput.text ?? "";
         var tokens = text.Split(' ', System.StringSplitOptions.RemoveEmptyEntries);
         var list = new List<Command>();
+
         foreach (var t in tokens)
         {
             switch (t.Trim().ToUpperInvariant())
@@ -68,15 +95,16 @@ public class UICommandBuilder : MonoBehaviour
                 case "DOWN": list.Add(Command.Down); break;
                 case "LEFT": list.Add(Command.Left); break;
                 case "RIGHT": list.Add(Command.Right); break;
-                case "WAIT": list.Add(Command.Wait); break;
             }
         }
+
         return list;
     }
 
     void Run()
     {
         if (game == null || game.agent == null) return;
+        if (game.agent.IsBusy) return;
 
         var cmds = ParseInput();
         if (cmds.Count == 0 && _queue.Count > 0)
@@ -84,28 +112,31 @@ public class UICommandBuilder : MonoBehaviour
 
         if (cmds.Count == 0)
         {
-            SetStatus("Добавь команды через кнопки или введи текстом.");
+            SetStatus("Добавь команды кнопками или текстом.");
             return;
         }
 
-        runButton.interactable = false;
-        resetButton.interactable = false;
+        // 2) На время выполнения — блокируем ввод, Reset оставляем активным
+        SetInputLocked(true);
         SetStatus("Выполняю команды...");
 
         game.agent.Run(cmds);
-        StartCoroutine(WaitAndCheckEnd(cmds.Count * game.agent.stepDuration));
+
+        // Ждём окончание по времени (позже можем сделать событие onDone, но сейчас просто)
+        StartCoroutine(FinishAfter(cmds.Count * game.agent.stepDuration));
     }
 
-    System.Collections.IEnumerator WaitAndCheckEnd(float wait)
+    IEnumerator FinishAfter(float waitTime)
     {
-        yield return new WaitForSeconds(wait + 0.1f);
-        runButton.interactable = true;
-        resetButton.interactable = true;
+        yield return new WaitForSeconds(waitTime + 0.1f);
+
+        // После выполнения: ввод всё ещё заблокирован, активна только Reset
+        SetInputLocked(true);
 
         if (game.agent.IsAtGoal())
-            SetStatus("🎉 Уровень пройден! Рыбка достигнута!");
+            SetStatus("🎉 Уровень пройден!");
         else
-            SetStatus("Команды выполнены, но цель не достигнута.");
+            SetStatus("Команды выполнены. Нажми Reset, чтобы попробовать ещё раз.");
     }
 
     void ResetLevel()
@@ -114,8 +145,26 @@ public class UICommandBuilder : MonoBehaviour
 
         _queue.Clear();
         SyncInputFromQueue();
+
         game.agent.PlaceAt(game.start);
-        SetStatus("Сброс. Готово к запуску.");
+
+        // Разблокируем ввод обратно
+        SetInputLocked(false);
+        SetStatus("Сброс. Введите новые команды.");
+    }
+
+    void SetInputLocked(bool locked)
+    {
+        // locked = true => ввод нельзя, только Reset активен
+        if (commandInput) commandInput.interactable = !locked;
+
+        if (upBtn) upBtn.interactable = !locked;
+        if (downBtn) downBtn.interactable = !locked;
+        if (leftBtn) leftBtn.interactable = !locked;
+        if (rightBtn) rightBtn.interactable = !locked;
+
+        if (runButton) runButton.interactable = !locked;
+        if (resetButton) resetButton.interactable = true; // всегда можно сбросить
     }
 
     void SetStatus(string msg)

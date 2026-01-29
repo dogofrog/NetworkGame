@@ -2,44 +2,50 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
-// Команды, которые можно задавать из UI
-public enum Command { Up, Down, Left, Right, Wait }
+// Доступные команды (БЕЗ WAIT)
+public enum Command
+{
+    Up,
+    Down,
+    Left,
+    Right
+}
 
 public class PlayerAgent : MonoBehaviour
 {
     [Header("Grid")]
-    public GridManager grid;         // ссылка на менеджер сетки
+    public GridManager grid;
 
     [Header("Move")]
-    public float stepDuration = 0.25f;    // время одного шага
+    public float stepDuration = 0.25f;
     public AnimationCurve moveCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
     [Header("Goal")]
-    public Vector2Int GoalCell;      // куда нужно дойти (рыбка)
-    private Vector2Int _cell;        // текущая клетка
-    private bool _busy;              // выполняет ли сейчас команды
+    public Vector2Int GoalCell;
+
+    private Vector2Int _cell;
+    private bool _busy;
 
     public Vector2Int Cell => _cell;
     public bool IsBusy => _busy;
 
-    /// Устанавливает персонажа на клетку
+    // Установка персонажа на клетку
     public void PlaceAt(Vector2Int cell)
     {
         _cell = cell;
-        if (grid != null)
-            transform.position = grid.CellToWorld(cell);
-        else
-            Debug.LogWarning("PlayerAgent: grid не назначен.");
+        transform.position = grid.CellToWorld(cell);
     }
 
-    /// Проверка, достиг ли персонаж цели
+    // Проверка победы
     public bool IsAtGoal() => _cell == GoalCell;
 
-    /// Запуск выполнения команд
+    // Запуск команд
     public void Run(List<Command> commands)
     {
-        if (!_busy && commands != null && commands.Count > 0)
-            StartCoroutine(RunRoutine(commands));
+        if (_busy || commands == null || commands.Count == 0)
+            return;
+
+        StartCoroutine(RunRoutine(commands));
     }
 
     private IEnumerator RunRoutine(List<Command> commands)
@@ -48,20 +54,14 @@ public class PlayerAgent : MonoBehaviour
 
         foreach (var cmd in commands)
         {
-            if (cmd == Command.Wait)
+            Vector2Int dir = cmd switch
             {
-                yield return new WaitForSeconds(stepDuration);
-                continue;
-            }
-
-            Vector2Int dir = Vector2Int.zero;
-            switch (cmd)
-            {
-                case Command.Up: dir = Vector2Int.up; break;
-                case Command.Down: dir = Vector2Int.down; break;
-                case Command.Left: dir = Vector2Int.left; break;
-                case Command.Right: dir = Vector2Int.right; break;
-            }
+                Command.Up => Vector2Int.up,
+                Command.Down => Vector2Int.down,
+                Command.Left => Vector2Int.left,
+                Command.Right => Vector2Int.right,
+                _ => Vector2Int.zero
+            };
 
             Vector2Int next = _cell + dir;
 
@@ -72,8 +72,10 @@ public class PlayerAgent : MonoBehaviour
                 break;
             }
 
-            // Движение
             yield return MoveTo(next);
+
+            if (IsAtGoal())
+                break;
         }
 
         _busy = false;
@@ -85,7 +87,7 @@ public class PlayerAgent : MonoBehaviour
         Vector3 end = grid.CellToWorld(nextCell);
         float t = 0f;
 
-        // поворот лицом по направлению движения
+        // Поворот по направлению движения
         Vector3 look = end - start;
         look.y = 0;
         if (look.sqrMagnitude > 0.001f)
@@ -103,8 +105,7 @@ public class PlayerAgent : MonoBehaviour
 
     private bool InBounds(Vector2Int c)
     {
-        int width = grid.width;
-        int height = grid.height;
-        return c.x >= 0 && c.x < width && c.y >= 0 && c.y < height;
+        return c.x >= 0 && c.x < grid.width &&
+               c.y >= 0 && c.y < grid.height;
     }
 }
