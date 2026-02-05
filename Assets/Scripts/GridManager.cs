@@ -27,6 +27,8 @@ public class GridManager : MonoBehaviour
     public Vector2Int goal  = new Vector2Int(7, 7);
     [Tooltip("Стенки между клетками (edge-walls)")]
     public List<EdgeWall> edgeWalls = new List<EdgeWall>();
+    [Tooltip("Координаты ям (x,y) в пределах width/height")]
+    public List<Vector2Int> pits = new List<Vector2Int>();
 
     [Header("Prefabs")]
     public GameObject tilePrefab;
@@ -34,6 +36,8 @@ public class GridManager : MonoBehaviour
     public GameObject goalPrefab;     // «компьютер»
     public GameObject startMarkerPrefab;
     public float wallYOffset = 0.5f;
+    public Material pitMaterial;      // материал для клетки-ямы
+    public Color pitFallbackColor = Color.yellow;
 
     [Header("Hierarchy")]
     public Transform tilesRoot;
@@ -43,6 +47,8 @@ public class GridManager : MonoBehaviour
     private GameObject[,] tiles;
     private readonly HashSet<EdgeKey> edgeWallSet = new();
     private readonly Dictionary<Vector2Int, Color> defaultTileColors = new();
+    private readonly Dictionary<Vector2Int, Material[][]> defaultTileMaterials = new();
+    private readonly HashSet<Vector2Int> pitSet = new();
 
     private struct EdgeKey
     {
@@ -80,6 +86,8 @@ public class GridManager : MonoBehaviour
         tiles = new GameObject[width, height];
         edgeWallSet.Clear();
         defaultTileColors.Clear();
+        defaultTileMaterials.Clear();
+        pitSet.Clear();
 
         // тайлы
         for (int x = 0; x < width; x++)
@@ -89,10 +97,20 @@ public class GridManager : MonoBehaviour
                 var pos = CellToWorld(new Vector2Int(x, z));
                 tiles[x, z] = Instantiate(tilePrefab, pos, Quaternion.identity, tilesRoot);
                 var cell = new Vector2Int(x, z);
-                var tileRenderer = GetTileRenderer(cell);
-                if (tileRenderer != null)
-                    defaultTileColors[cell] = tileRenderer.material.color;
+                var renderers = GetTileRenderers(cell);
+                if (renderers != null && renderers.Length > 0)
+                {
+                    defaultTileMaterials[cell] = CaptureSharedMaterials(renderers);
+                    defaultTileColors[cell] = renderers[0].sharedMaterial.color;
+                }
             }
+        }
+
+        foreach (var p in pits)
+        {
+            if (!InBounds(p)) continue;
+            pitSet.Add(p);
+            ApplyPitMaterial(p);
         }
 
         // стены между клетками
@@ -145,27 +163,102 @@ public class GridManager : MonoBehaviour
 
     public bool IsWalkable(Vector2Int c) => InBounds(c);
 
+    public bool IsPit(Vector2Int c) => pitSet.Contains(c);
+
+    void ApplyPitMaterial(Vector2Int cell)
+    {
+        var renderers = GetTileRenderers(cell);
+        if (renderers == null) return;
+
+        foreach (var r in renderers)
+        {
+            if (pitMaterial != null)
+            {
+                var mats = r.materials;
+                for (int i = 0; i < mats.Length; i++)
+                    mats[i] = pitMaterial;
+                r.materials = mats;
+
+                var block = new MaterialPropertyBlock();
+                r.GetPropertyBlock(block);
+                block.SetColor("_BaseColor", pitMaterial.color);
+                block.SetColor("_Color", pitMaterial.color);
+                r.SetPropertyBlock(block);
+            }
+            else
+            {
+                var block = new MaterialPropertyBlock();
+                r.GetPropertyBlock(block);
+                block.SetColor("_BaseColor", pitFallbackColor);
+                block.SetColor("_Color", pitFallbackColor);
+                r.SetPropertyBlock(block);
+            }
+        }
+    }
+
     public void SetCellColor(Vector2Int cell, Color color)
     {
-        var tileRenderer = GetTileRenderer(cell);
-        if (tileRenderer == null) return;
-        tileRenderer.material.color = color;
+        var renderers = GetTileRenderers(cell);
+        if (renderers == null) return;
+        foreach (var r in renderers)
+            r.material.color = color;
     }
 
     public void ResetTileColors()
     {
+        foreach (var pair in defaultTileMaterials)
+            RestoreCellMaterials(pair.Key, pair.Value);
+
         foreach (var pair in defaultTileColors)
             SetCellColor(pair.Key, pair.Value);
     }
 
     Renderer GetTileRenderer(Vector2Int cell)
     {
+        var renderers = GetTileRenderers(cell);
+        if (renderers == null || renderers.Length == 0) return null;
+        return renderers[0];
+    }
+
+    void SetCellMaterial(Vector2Int cell, Material material)
+    {
+        var renderers = GetTileRenderers(cell);
+        if (renderers == null) return;
+        foreach (var r in renderers)
+        {
+            var mats = r.sharedMaterials;
+            for (int i = 0; i < mats.Length; i++)
+                mats[i] = material;
+            r.sharedMaterials = mats;
+        }
+    }
+
+    Renderer[] GetTileRenderers(Vector2Int cell)
+    {
         if (!InBounds(cell) || tiles == null) return null;
 
         var tile = tiles[cell.x, cell.y];
         if (tile == null) return null;
 
-        return tile.GetComponentInChildren<Renderer>();
+        return tile.GetComponentsInChildren<Renderer>();
+    }
+
+    Material[][] CaptureSharedMaterials(Renderer[] renderers)
+    {
+        var captured = new Material[renderers.Length][];
+        for (int i = 0; i < renderers.Length; i++)
+            captured[i] = (Material[])renderers[i].sharedMaterials.Clone();
+        return captured;
+    }
+
+    void RestoreCellMaterials(Vector2Int cell, Material[][] materialsPerRenderer)
+    {
+        var renderers = GetTileRenderers(cell);
+        if (renderers == null) return;
+
+        int count = Mathf.Min(renderers.Length, materialsPerRenderer.Length);
+        for (int i = 0; i < count; i++)
+            renderers[i].sharedMaterials = materialsPerRenderer[i];
     }
 
     public bool IsBlockedByWall(Vector2Int from, Vector2Int to)

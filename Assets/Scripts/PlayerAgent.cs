@@ -96,6 +96,12 @@ public class PlayerAgent : MonoBehaviour
 
             yield return MoveTo(next);
 
+            if (grid != null && grid.IsPit(_cell))
+            {
+                Debug.Log("Яма: игрок провалился!");
+                break;
+            }
+
             if (IsRunComplete != null && IsRunComplete())
                 break;
         }
@@ -134,6 +140,9 @@ public class PlayerAgent : MonoBehaviour
                 yield break;
 
             yield return MoveTo(next);
+
+            if (grid != null && grid.IsPit(_cell))
+                yield break;
 
             if (IsRunComplete != null && IsRunComplete())
             {

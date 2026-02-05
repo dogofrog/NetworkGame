@@ -31,11 +31,13 @@ public class GameController : MonoBehaviour
     private bool _reachedTargetThisRun;
     private bool _hasCheckpoint;
     private Vector2Int _checkpointCell;
+    private bool _fellIntoPitThisRun;
 
     public enum RunOutcome
     {
         None,
         ReachedTarget,
+        FellIntoPit,
         Mistake,
         AllCompleted
     }
@@ -93,6 +95,12 @@ public class GameController : MonoBehaviour
 
     void OnAgentCellChanged(Vector2Int cell)
     {
+        if (grid != null && grid.IsPit(cell))
+        {
+            _fellIntoPitThisRun = true;
+            return;
+        }
+
         if (_currentTargetIndex >= targetCells.Count) return;
         if (cell != targetCells[_currentTargetIndex]) return;
 
@@ -108,6 +116,12 @@ public class GameController : MonoBehaviour
 
     void OnAgentRunFinished()
     {
+        if (_fellIntoPitThisRun)
+        {
+            LastRunOutcome = RunOutcome.FellIntoPit;
+            return;
+        }
+
         if (_reachedTargetThisRun)
         {
             LastRunOutcome = AllTargetsCompleted ? RunOutcome.AllCompleted : RunOutcome.ReachedTarget;
@@ -144,6 +158,7 @@ public class GameController : MonoBehaviour
     {
         _currentTargetIndex = 0;
         _reachedTargetThisRun = false;
+        _fellIntoPitThisRun = false;
         LastRunOutcome = RunOutcome.None;
         LastReachedTargetIndex = -1;
         _hasCheckpoint = false;
@@ -165,6 +180,7 @@ public class GameController : MonoBehaviour
     public void BeginRun()
     {
         _reachedTargetThisRun = false;
+        _fellIntoPitThisRun = false;
         LastRunOutcome = RunOutcome.None;
         LastReachedTargetIndex = -1;
     }

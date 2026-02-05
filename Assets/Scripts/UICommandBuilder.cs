@@ -186,6 +186,10 @@ public class UICommandBuilder : MonoBehaviour
                 SetInputLocked(true);
                 SetStatus("🎉 Уровень пройден!");
                 break;
+            case GameController.RunOutcome.FellIntoPit:
+                SetInputLocked(true);
+                SetStatus("Вы провалились в яму. Нажми Reset, чтобы попробовать ещё раз.");
+                break;
             case GameController.RunOutcome.Mistake:
                 SetInputLocked(true);
                 SetStatus("Ошибка: неправильная клетка. Нажми Reset, чтобы попробовать ещё раз.");
