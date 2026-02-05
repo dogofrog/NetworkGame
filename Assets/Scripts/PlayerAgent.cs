@@ -8,7 +8,8 @@ public enum Command
     Up,
     Down,
     Left,
-    Right
+    Right,
+    While
 }
 
 public class PlayerAgent : MonoBehaviour
@@ -25,6 +26,10 @@ public class PlayerAgent : MonoBehaviour
 
     private Vector2Int _cell;
     private bool _busy;
+
+    public System.Action<Vector2Int> OnCellChanged;
+    public System.Action OnRunFinished;
+    public System.Func<bool> IsRunComplete;
 
     public Vector2Int Cell => _cell;
     public bool IsBusy => _busy;
@@ -51,17 +56,28 @@ public class PlayerAgent : MonoBehaviour
     private IEnumerator RunRoutine(List<Command> commands)
     {
         _busy = true;
+        bool stopAll = false;
 
-        foreach (var cmd in commands)
+        for (int i = 0; i < commands.Count; i++)
         {
-            Vector2Int dir = cmd switch
+            var cmd = commands[i];
+
+            if (cmd == Command.While)
             {
-                Command.Up => Vector2Int.up,
-                Command.Down => Vector2Int.down,
-                Command.Left => Vector2Int.left,
-                Command.Right => Vector2Int.right,
-                _ => Vector2Int.zero
-            };
+                if (i + 1 < commands.Count && IsDirection(commands[i + 1]))
+                {
+                    var whileDir = ToDir(commands[i + 1]);
+                    i++;
+                    yield return MoveUntilBlocked(whileDir, () => stopAll = true);
+                    if (stopAll) break;
+                }
+                continue;
+            }
+
+            if (!IsDirection(cmd))
+                continue;
+
+            Vector2Int dir = ToDir(cmd);
 
             Vector2Int next = _cell + dir;
 
@@ -72,13 +88,59 @@ public class PlayerAgent : MonoBehaviour
                 break;
             }
 
+            if (grid != null && grid.IsBlockedByWall(_cell, next))
+            {
+                Debug.Log("Стена: движение заблокировано!");
+                continue;
+            }
+
             yield return MoveTo(next);
 
-            if (IsAtGoal())
+            if (IsRunComplete != null && IsRunComplete())
                 break;
         }
 
         _busy = false;
+        OnRunFinished?.Invoke();
+    }
+
+    private bool IsDirection(Command cmd)
+    {
+        return cmd == Command.Up || cmd == Command.Down || cmd == Command.Left || cmd == Command.Right;
+    }
+
+    private Vector2Int ToDir(Command cmd)
+    {
+        return cmd switch
+        {
+            Command.Up => Vector2Int.up,
+            Command.Down => Vector2Int.down,
+            Command.Left => Vector2Int.left,
+            Command.Right => Vector2Int.right,
+            _ => Vector2Int.zero
+        };
+    }
+
+    private IEnumerator MoveUntilBlocked(Vector2Int dir, System.Action onStopAll)
+    {
+        while (true)
+        {
+            Vector2Int next = _cell + dir;
+
+            if (!InBounds(next))
+                yield break;
+
+            if (grid != null && grid.IsBlockedByWall(_cell, next))
+                yield break;
+
+            yield return MoveTo(next);
+
+            if (IsRunComplete != null && IsRunComplete())
+            {
+                onStopAll?.Invoke();
+                yield break;
+            }
+        }
     }
 
     private IEnumerator MoveTo(Vector2Int nextCell)
@@ -101,6 +163,7 @@ public class PlayerAgent : MonoBehaviour
         }
 
         _cell = nextCell;
+        OnCellChanged?.Invoke(_cell);
     }
 
     private bool InBounds(Vector2Int c)
