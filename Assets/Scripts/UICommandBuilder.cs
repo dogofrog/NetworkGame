@@ -20,6 +20,11 @@ public class UICommandBuilder : MonoBehaviour
     public Button leftBtn;
     public Button rightBtn;
     public Button whileBtn;
+    public TextMeshProUGUI upCountText;
+    public TextMeshProUGUI downCountText;
+    public TextMeshProUGUI leftCountText;
+    public TextMeshProUGUI rightCountText;
+    public TextMeshProUGUI whileCountText;
 
     [Header("Feedback (optional)")]
     public TextMeshProUGUI statusText;
@@ -51,6 +56,7 @@ public class UICommandBuilder : MonoBehaviour
         // В начале всё доступно
         SetInputLocked(false);
         SetStatus("Введите команды и нажмите Run.");
+        RefreshButtonLimits();
     }
 
     void Update()
@@ -79,6 +85,7 @@ public class UICommandBuilder : MonoBehaviour
 
         // Многострочный ввод (чтобы переносы реально работали)
         commandInput.lineType = TMP_InputField.LineType.MultiLineNewline;
+        commandInput.readOnly = true;
 
         // Включаем перенос слов и не режем текст
         if (commandInput.textComponent != null)
@@ -92,22 +99,21 @@ public class UICommandBuilder : MonoBehaviour
     {
         if (!commandInput.interactable) return; // если заблокировано — не добавляем
 
+        if (game != null && !game.TryConsume(c))
+        {
+            SetStatus($"Лимит команды {ToToken(c)} исчерпан.");
+            RefreshButtonLimits();
+            return;
+        }
+
         _queue.Add(c);
         SyncInputFromQueue();
+        RefreshButtonLimits();
     }
 
     void SyncInputFromQueue()
     {
-        var parts = new List<string>(_queue.Count);
-        foreach (var cmd in _queue)
-        {
-            if (cmd == Command.While)
-                parts.Add("while (true):");
-            else
-                parts.Add(ToToken(cmd));
-        }
-
-        commandInput.text = string.Join(" ", parts);
+        commandInput.text = BuildCompactText();
     }
 
     string ToToken(Command c) => c switch
@@ -180,6 +186,7 @@ public class UICommandBuilder : MonoBehaviour
                 SyncInputFromQueue();
 
                 SetInputLocked(false);
+                RefreshButtonLimits();
                 break;
             }
             case GameController.RunOutcome.AllCompleted:
@@ -197,6 +204,7 @@ public class UICommandBuilder : MonoBehaviour
             default:
                 SetInputLocked(false);
                 SetStatus("Команды выполнены. Введите следующие.");
+                RefreshButtonLimits();
                 break;
         }
     }
@@ -213,6 +221,7 @@ public class UICommandBuilder : MonoBehaviour
         // Разблокируем ввод обратно
         SetInputLocked(false);
         SetStatus("Сброс. Введите новые команды.");
+        RefreshButtonLimits();
     }
 
     void FullRestart()
@@ -226,6 +235,7 @@ public class UICommandBuilder : MonoBehaviour
 
         SetInputLocked(false);
         SetStatus("Полный рестарт. Введите новые команды.");
+        RefreshButtonLimits();
     }
 
     void BindResetHoldHandlers()
@@ -269,11 +279,18 @@ public class UICommandBuilder : MonoBehaviour
         // locked = true => ввод нельзя, только Reset активен
         if (commandInput) commandInput.interactable = !locked;
 
-        if (upBtn) upBtn.interactable = !locked;
-        if (downBtn) downBtn.interactable = !locked;
-        if (leftBtn) leftBtn.interactable = !locked;
-        if (rightBtn) rightBtn.interactable = !locked;
-        if (whileBtn) whileBtn.interactable = !locked;
+        if (locked)
+        {
+            if (upBtn) upBtn.interactable = false;
+            if (downBtn) downBtn.interactable = false;
+            if (leftBtn) leftBtn.interactable = false;
+            if (rightBtn) rightBtn.interactable = false;
+            if (whileBtn) whileBtn.interactable = false;
+        }
+        else
+        {
+            RefreshButtonLimits();
+        }
 
         if (runButton) runButton.interactable = !locked;
         if (resetButton) resetButton.interactable = true; // всегда можно сбросить
@@ -283,5 +300,113 @@ public class UICommandBuilder : MonoBehaviour
     {
         if (statusText) statusText.text = msg;
         Debug.Log(msg);
+    }
+
+    void RefreshButtonLimits()
+    {
+        if (game == null) return;
+
+        int up = game.GetRemaining(Command.Up);
+        int down = game.GetRemaining(Command.Down);
+        int left = game.GetRemaining(Command.Left);
+        int right = game.GetRemaining(Command.Right);
+        int wh = game.GetRemaining(Command.While);
+
+        if (upBtn) upBtn.interactable = up > 0;
+        if (downBtn) downBtn.interactable = down > 0;
+        if (leftBtn) leftBtn.interactable = left > 0;
+        if (rightBtn) rightBtn.interactable = right > 0;
+        if (whileBtn) whileBtn.interactable = wh > 0;
+
+        if (upCountText) upCountText.text = $"x{up}";
+        if (downCountText) downCountText.text = $"x{down}";
+        if (leftCountText) leftCountText.text = $"x{left}";
+        if (rightCountText) rightCountText.text = $"x{right}";
+        if (whileCountText) whileCountText.text = $"x{wh}";
+    }
+
+    string BuildCompactText()
+    {
+        var tokens = BuildDisplayTokens();
+        var parts = new List<string>(tokens.Count);
+        foreach (var t in tokens)
+        {
+            string icon = t.isWhile
+                ? $"⟳{DirGlyph(t.dir)}"
+                : DirGlyph(t.cmd);
+            if (t.count > 1)
+                parts.Add($"{icon}×{t.count}");
+            else
+                parts.Add(icon);
+        }
+
+        return string.Join(" ", parts);
+    }
+
+    struct DisplayToken
+    {
+        public Command cmd;
+        public Command dir;
+        public bool isWhile;
+        public int count;
+    }
+
+    List<DisplayToken> BuildDisplayTokens()
+    {
+        var raw = new List<DisplayToken>();
+
+        for (int i = 0; i < _queue.Count; i++)
+        {
+            var cmd = _queue[i];
+            if (cmd == Command.While && i + 1 < _queue.Count && IsDirection(_queue[i + 1]))
+            {
+                raw.Add(new DisplayToken { isWhile = true, dir = _queue[i + 1], count = 1 });
+                i++;
+                continue;
+            }
+
+            if (!IsDirection(cmd)) continue;
+            raw.Add(new DisplayToken { cmd = cmd, isWhile = false, count = 1 });
+        }
+
+        var compressed = new List<DisplayToken>();
+        foreach (var t in raw)
+        {
+            if (compressed.Count == 0)
+            {
+                compressed.Add(t);
+                continue;
+            }
+
+            var last = compressed[compressed.Count - 1];
+            if (last.isWhile == t.isWhile && last.dir == t.dir && last.cmd == t.cmd)
+            {
+                last.count += 1;
+                compressed[compressed.Count - 1] = last;
+            }
+            else
+            {
+                compressed.Add(t);
+            }
+        }
+
+        return compressed;
+    }
+
+    string DirGlyph(Command cmd)
+    {
+        return cmd switch
+        {
+            Command.Up => "↑",
+            Command.Down => "↓",
+            Command.Left => "←",
+            Command.Right => "→",
+            _ => "?"
+        };
+    }
+
+    bool IsDirection(Command cmd)
+    {
+        return cmd == Command.Up || cmd == Command.Down || cmd == Command.Left || cmd == Command.Right;
     }
 }

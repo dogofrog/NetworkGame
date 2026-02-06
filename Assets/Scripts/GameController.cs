@@ -32,6 +32,8 @@ public class GameController : MonoBehaviour
     private bool _hasCheckpoint;
     private Vector2Int _checkpointCell;
     private bool _fellIntoPitThisRun;
+    private int _currentCheckpointIndex;
+    private CommandLimits _remainingLimits;
 
     public enum RunOutcome
     {
@@ -44,6 +46,19 @@ public class GameController : MonoBehaviour
 
     public RunOutcome LastRunOutcome { get; private set; } = RunOutcome.None;
     public int LastReachedTargetIndex { get; private set; } = -1;
+
+    [System.Serializable]
+    public struct CommandLimits
+    {
+        public int up;
+        public int down;
+        public int left;
+        public int right;
+        public int @while;
+    }
+
+    [Header("Command Limits (per checkpoint index)")]
+    public List<CommandLimits> checkpointLimits = new();
 
     void Start()
     {
@@ -109,6 +124,8 @@ public class GameController : MonoBehaviour
         _reachedTargetThisRun = true;
         LastReachedTargetIndex = _currentTargetIndex;
         _currentTargetIndex++;
+        _currentCheckpointIndex = _currentTargetIndex;
+        ResetLimitsForCurrentCheckpoint();
 
         if (_currentTargetIndex < targetCells.Count)
             agent.GoalCell = targetCells[_currentTargetIndex];
@@ -162,6 +179,8 @@ public class GameController : MonoBehaviour
         LastRunOutcome = RunOutcome.None;
         LastReachedTargetIndex = -1;
         _hasCheckpoint = false;
+        _currentCheckpointIndex = 0;
+        ResetLimitsForCurrentCheckpoint();
         grid.ResetTileColors();
 
         for (int i = 0; i < targetTransforms.Count; i++)
@@ -192,6 +211,7 @@ public class GameController : MonoBehaviour
         if (_hasCheckpoint)
         {
             agent.PlaceAt(_checkpointCell);
+            ResetLimitsForCurrentCheckpoint();
         }
         else
         {
@@ -206,6 +226,60 @@ public class GameController : MonoBehaviour
 
         ResetTargetsState();
         agent.PlaceAt(start);
+    }
+
+    public bool TryConsume(Command cmd)
+    {
+        ref int remaining = ref GetRemainingRef(cmd);
+        if (remaining <= 0) return false;
+        remaining--;
+        return true;
+    }
+
+    public int GetRemaining(Command cmd)
+    {
+        return GetRemainingRef(cmd);
+    }
+
+    public void ResetLimitsForCurrentCheckpoint()
+    {
+        _remainingLimits = GetLimitsForCheckpoint(_currentCheckpointIndex);
+    }
+
+    CommandLimits GetLimitsForCheckpoint(int index)
+    {
+        if (checkpointLimits == null || checkpointLimits.Count == 0)
+            return UnlimitedLimits();
+
+        if (index < 0) index = 0;
+        if (index >= checkpointLimits.Count) index = checkpointLimits.Count - 1;
+
+        return checkpointLimits[index];
+    }
+
+    CommandLimits UnlimitedLimits()
+    {
+        return new CommandLimits
+        {
+            up = int.MaxValue,
+            down = int.MaxValue,
+            left = int.MaxValue,
+            right = int.MaxValue,
+            @while = int.MaxValue
+        };
+    }
+
+    ref int GetRemainingRef(Command cmd)
+    {
+        switch (cmd)
+        {
+            case Command.Up: return ref _remainingLimits.up;
+            case Command.Down: return ref _remainingLimits.down;
+            case Command.Left: return ref _remainingLimits.left;
+            case Command.Right: return ref _remainingLimits.right;
+            case Command.While: return ref _remainingLimits.@while;
+            default: return ref _remainingLimits.up;
+        }
     }
 
     void CreateCheckpoint(Vector2Int cell)
