@@ -50,6 +50,9 @@ public class GridManager : MonoBehaviour
     private readonly Dictionary<Vector2Int, Material[][]> defaultTileMaterials = new();
     private readonly HashSet<Vector2Int> pitSet = new();
 
+    [Header("Editor")]
+    public bool buildInEditMode = true;
+
     private struct EdgeKey
     {
         public Vector2Int a;
@@ -74,6 +77,23 @@ public class GridManager : MonoBehaviour
     {
         Build();
     }
+
+#if UNITY_EDITOR
+    void OnValidate()
+    {
+        if (Application.isPlaying) return;
+        if (!buildInEditMode) return;
+        if (tilePrefab == null) return;
+        Build();
+    }
+
+    [ContextMenu("Build Grid")]
+    void BuildFromMenu()
+    {
+        if (Application.isPlaying) return;
+        Build();
+    }
+#endif
 
     public void Build()
     {
