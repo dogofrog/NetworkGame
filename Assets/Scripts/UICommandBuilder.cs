@@ -25,6 +25,10 @@ public class UICommandBuilder : MonoBehaviour
     public TextMeshProUGUI leftCountText;
     public TextMeshProUGUI rightCountText;
     public TextMeshProUGUI whileCountText;
+    public GameObject levelIntroPanel;
+    public TextMeshProUGUI levelIntroTitleText;
+    public TextMeshProUGUI levelIntroBodyText;
+    public Button levelIntroCloseButton;
 
     [Header("Feedback (optional)")]
     public TextMeshProUGUI statusText;
@@ -35,6 +39,8 @@ public class UICommandBuilder : MonoBehaviour
     private bool _resetHoldTriggered;
     private float _resetHoldStart;
     private const float ResetHoldSeconds = 3f;
+    private bool _inputLocked;
+    private bool _levelIntroVisible;
 
     void Start()
     {
@@ -52,11 +58,13 @@ public class UICommandBuilder : MonoBehaviour
         runButton.onClick.AddListener(Run);
         resetButton.onClick.RemoveAllListeners();
         BindResetHoldHandlers();
+        BindLevelIntroHandlers();
 
         // В начале всё доступно
         SetInputLocked(false);
         SetStatus("Введите команды и нажмите Run.");
         RefreshButtonLimits();
+        TryShowLevelIntro();
     }
 
     void Update()
@@ -152,6 +160,7 @@ public class UICommandBuilder : MonoBehaviour
     {
         if (game == null || game.agent == null) return;
         if (game.agent.IsBusy) return;
+        if (_levelIntroVisible) return;
 
         var cmds = ParseInput();
         if (cmds.Count == 0 && _queue.Count > 0)
@@ -212,6 +221,7 @@ public class UICommandBuilder : MonoBehaviour
     void ResetLevel()
     {
         if (game == null || game.agent == null) return;
+        if (_levelIntroVisible) return;
 
         _queue.Clear();
         SyncInputFromQueue();
@@ -227,6 +237,7 @@ public class UICommandBuilder : MonoBehaviour
     void FullRestart()
     {
         if (game == null || game.agent == null) return;
+        if (_levelIntroVisible) return;
 
         _queue.Clear();
         SyncInputFromQueue();
@@ -276,24 +287,8 @@ public class UICommandBuilder : MonoBehaviour
 
     void SetInputLocked(bool locked)
     {
-        // locked = true => ввод нельзя, только Reset активен
-        if (commandInput) commandInput.interactable = !locked;
-
-        if (locked)
-        {
-            if (upBtn) upBtn.interactable = false;
-            if (downBtn) downBtn.interactable = false;
-            if (leftBtn) leftBtn.interactable = false;
-            if (rightBtn) rightBtn.interactable = false;
-            if (whileBtn) whileBtn.interactable = false;
-        }
-        else
-        {
-            RefreshButtonLimits();
-        }
-
-        if (runButton) runButton.interactable = !locked;
-        if (resetButton) resetButton.interactable = true; // всегда можно сбросить
+        _inputLocked = locked;
+        ApplyInteractionState();
     }
 
     void SetStatus(string msg)
@@ -312,11 +307,13 @@ public class UICommandBuilder : MonoBehaviour
         int right = game.GetRemaining(Command.Right);
         int wh = game.GetRemaining(Command.While);
 
-        if (upBtn) upBtn.interactable = up > 0;
-        if (downBtn) downBtn.interactable = down > 0;
-        if (leftBtn) leftBtn.interactable = left > 0;
-        if (rightBtn) rightBtn.interactable = right > 0;
-        if (whileBtn) whileBtn.interactable = wh > 0;
+        bool available = !_inputLocked && !_levelIntroVisible;
+
+        if (upBtn) upBtn.interactable = available && up > 0;
+        if (downBtn) downBtn.interactable = available && down > 0;
+        if (leftBtn) leftBtn.interactable = available && left > 0;
+        if (rightBtn) rightBtn.interactable = available && right > 0;
+        if (whileBtn) whileBtn.interactable = available && wh > 0;
 
         if (upCountText) upCountText.text = $"x{up}";
         if (downCountText) downCountText.text = $"x{down}";
@@ -408,5 +405,84 @@ public class UICommandBuilder : MonoBehaviour
     bool IsDirection(Command cmd)
     {
         return cmd == Command.Up || cmd == Command.Down || cmd == Command.Left || cmd == Command.Right;
+    }
+
+    void BindLevelIntroHandlers()
+    {
+        if (levelIntroCloseButton)
+            levelIntroCloseButton.onClick.AddListener(CloseLevelIntro);
+
+        if (levelIntroPanel)
+            levelIntroPanel.SetActive(false);
+    }
+
+    void TryShowLevelIntro()
+    {
+        if (!CanShowLevelIntroUI())
+            return;
+
+        if (game == null || !game.ShouldShowLevelIntro())
+            return;
+
+        _levelIntroVisible = true;
+
+        if (levelIntroTitleText)
+            levelIntroTitleText.text = game.GetLevelIntroTitle();
+
+        if (levelIntroBodyText)
+            levelIntroBodyText.text = game.BuildLevelIntroBody();
+
+        if (levelIntroPanel)
+            levelIntroPanel.SetActive(true);
+
+        ApplyInteractionState();
+    }
+
+    void CloseLevelIntro()
+    {
+        if (!_levelIntroVisible) return;
+
+        _levelIntroVisible = false;
+
+        if (levelIntroPanel)
+            levelIntroPanel.SetActive(false);
+
+        if (game != null)
+            game.MarkLevelIntroShown();
+
+        ApplyInteractionState();
+    }
+
+    void ApplyInteractionState()
+    {
+        bool gameplayAvailable = !_inputLocked && !_levelIntroVisible;
+
+        if (commandInput) commandInput.interactable = gameplayAvailable;
+        if (runButton) runButton.interactable = gameplayAvailable;
+        if (resetButton) resetButton.interactable = !_levelIntroVisible;
+
+        if (_inputLocked || _levelIntroVisible)
+        {
+            if (upBtn) upBtn.interactable = false;
+            if (downBtn) downBtn.interactable = false;
+            if (leftBtn) leftBtn.interactable = false;
+            if (rightBtn) rightBtn.interactable = false;
+            if (whileBtn) whileBtn.interactable = false;
+        }
+        else
+        {
+            RefreshButtonLimits();
+        }
+    }
+
+    bool CanShowLevelIntroUI()
+    {
+        if (levelIntroPanel != null && levelIntroBodyText != null && levelIntroCloseButton != null)
+            return true;
+
+        if (game != null && game.HasLevelIntro())
+            Debug.LogWarning("UICommandBuilder: для окна уровня нужно назначить Level Intro Panel, Level Intro Body Text и Level Intro Close Button.");
+
+        return false;
     }
 }

@@ -3,12 +3,21 @@ using System.Collections.Generic;
 
 public class GameController : MonoBehaviour
 {
+    [System.Serializable]
+    public struct LevelIntroInfo
+    {
+        public string levelId;
+        public string title;
+        [TextArea(8, 20)] public string body;
+    }
+
     [Header("Refs")]
     public GridManager grid;
 
     [Header("Prefabs")]
     public GameObject characterPrefab; // Префаб персонажа (Character)
     public List<GameObject> targetPrefabs = new(); // 3 префаба целей по порядку
+    public float targetYOffset = 0f;
 
     [Header("Level Settings")]
     public Vector2Int start = new Vector2Int(0, 0);
@@ -18,6 +27,9 @@ public class GameController : MonoBehaviour
         new Vector2Int(5, 5),
         new Vector2Int(7, 7)
     };
+
+    [Header("Level Intro")]
+    public LevelIntroInfo levelIntro;
 
     [Header("Spawn Roots (optional)")]
     public Transform charactersRoot;
@@ -98,7 +110,7 @@ public class GameController : MonoBehaviour
             if (prefab == null) continue;
 
             var go = Instantiate(prefab, targetsRoot);
-            go.transform.position = grid.CellToWorld(targetCells[i]);
+            go.transform.position = grid.CellToWorld(targetCells[i]) + new Vector3(0f, targetYOffset, 0f);
 
             var tp = go.GetComponent<TargetPoint>();
             if (tp == null) tp = go.AddComponent<TargetPoint>();
@@ -196,6 +208,43 @@ public class GameController : MonoBehaviour
 
     public bool AllTargetsCompleted => _currentTargetIndex >= targetCells.Count && targetCells.Count > 0;
 
+    public bool HasLevelIntro()
+    {
+        return !string.IsNullOrWhiteSpace(levelIntro.title) ||
+               !string.IsNullOrWhiteSpace(levelIntro.body);
+    }
+
+    public bool ShouldShowLevelIntro()
+    {
+        if (!HasLevelIntro())
+            return false;
+
+        return PlayerPrefs.GetInt(GetLevelIntroPrefsKey(), 0) == 0;
+    }
+
+    public void MarkLevelIntroShown()
+    {
+        PlayerPrefs.SetInt(GetLevelIntroPrefsKey(), 1);
+        PlayerPrefs.Save();
+    }
+
+    [ContextMenu("Reset Level Intro Seen")]
+    public void ResetLevelIntroSeen()
+    {
+        PlayerPrefs.DeleteKey(GetLevelIntroPrefsKey());
+        PlayerPrefs.Save();
+    }
+
+    public string GetLevelIntroTitle()
+    {
+        return string.IsNullOrWhiteSpace(levelIntro.title) ? "Информация об уровне" : levelIntro.title;
+    }
+
+    public string BuildLevelIntroBody()
+    {
+        return string.IsNullOrWhiteSpace(levelIntro.body) ? "" : levelIntro.body.Trim();
+    }
+
     public void BeginRun()
     {
         _reachedTargetThisRun = false;
@@ -287,5 +336,11 @@ public class GameController : MonoBehaviour
         _hasCheckpoint = true;
         _checkpointCell = cell;
         grid.SetCellColor(cell, Color.red);
+    }
+
+    string GetLevelIntroPrefsKey()
+    {
+        string levelId = string.IsNullOrWhiteSpace(levelIntro.levelId) ? gameObject.scene.name : levelIntro.levelId.Trim();
+        return $"level_intro_seen_{levelId}";
     }
 }
