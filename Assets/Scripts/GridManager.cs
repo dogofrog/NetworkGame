@@ -84,7 +84,7 @@ public class GridManager : MonoBehaviour
         if (Application.isPlaying) return;
         if (!buildInEditMode) return;
         if (tilePrefab == null) return;
-        Build();
+        UnityEditor.EditorApplication.delayCall += () => { if (this != null) Build(); };
     }
 
     [ContextMenu("Build Grid")]

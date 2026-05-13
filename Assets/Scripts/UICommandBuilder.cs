@@ -64,7 +64,6 @@ public class UICommandBuilder : MonoBehaviour
         SetInputLocked(false);
         SetStatus("Введите команды и нажмите Run.");
         RefreshButtonLimits();
-        TryShowLevelIntro();
     }
 
     void Update()
@@ -416,12 +415,22 @@ public class UICommandBuilder : MonoBehaviour
             levelIntroPanel.SetActive(false);
     }
 
-    void TryShowLevelIntro()
+    // Публичные методы для PhysicalButton3D (назначаются через UnityEvent в инспекторе)
+    public void AddUp() => Add(Command.Up);
+    public void AddDown() => Add(Command.Down);
+    public void AddLeft() => Add(Command.Left);
+    public void AddRight() => Add(Command.Right);
+    public void AddWhile() => Add(Command.While);
+    public void TriggerRun() => Run();
+    public void TriggerReset() => ResetLevel();
+    public void TriggerFullRestart() => FullRestart();
+
+    public void ShowLevelIntro(bool markAsShown = false)
     {
         if (!CanShowLevelIntroUI())
             return;
 
-        if (game == null || !game.ShouldShowLevelIntro())
+        if (game == null || !game.HasLevelIntro())
             return;
 
         _levelIntroVisible = true;
@@ -435,6 +444,9 @@ public class UICommandBuilder : MonoBehaviour
         if (levelIntroPanel)
             levelIntroPanel.SetActive(true);
 
+        if (markAsShown)
+            game.MarkLevelIntroShown();
+
         ApplyInteractionState();
     }
 
@@ -446,9 +458,6 @@ public class UICommandBuilder : MonoBehaviour
 
         if (levelIntroPanel)
             levelIntroPanel.SetActive(false);
-
-        if (game != null)
-            game.MarkLevelIntroShown();
 
         ApplyInteractionState();
     }
