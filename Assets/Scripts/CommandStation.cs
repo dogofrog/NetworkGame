@@ -18,6 +18,9 @@ public class CommandStation : MonoBehaviour
     public PhysicalButton3D runButton;
     public PhysicalButton3D resetButton;
 
+    [Header("Checkpoint Popup (опционально)")]
+    public CheckpointPopupUI checkpointPopup;
+
     readonly List<Command> _queue = new();
     bool _inputLocked;
     bool _agentHooked;
@@ -101,15 +104,48 @@ public class CommandStation : MonoBehaviour
         switch (game.LastRunOutcome)
         {
             case GameController.RunOutcome.ReachedTarget:
-                int idx = game.LastReachedTargetIndex + 1;
-                Log($"Цель {idx} достигнута. Введите новые команды.");
+                int idx = game.LastReachedTargetIndex;
                 _queue.Clear();
-                SetInputLocked(false);
                 RefreshCommandDisplay();
+
+                if (checkpointPopup != null)
+                {
+                    var info = game.GetCheckpointInfo(idx);
+                    if (!string.IsNullOrWhiteSpace(info.title) || !string.IsNullOrWhiteSpace(info.reachBody))
+                    {
+                        Log($"Цель {idx + 1} достигнута.");
+                        checkpointPopup.OnClosed = () =>
+                        {
+                            SetInputLocked(false);
+                            RefreshButtonStates();
+                            Log("Введите новые команды.");
+                        };
+                        checkpointPopup.Show(info.title, info.reachBody);
+                        break;
+                    }
+                }
+
+                Log($"Цель {idx + 1} достигнута. Введите новые команды.");
+                SetInputLocked(false);
                 RefreshButtonStates();
                 break;
 
             case GameController.RunOutcome.AllCompleted:
+                int lastIdx = game.LastReachedTargetIndex;
+                if (checkpointPopup != null && lastIdx >= 0)
+                {
+                    var info = game.GetCheckpointInfo(lastIdx);
+                    if (!string.IsNullOrWhiteSpace(info.title) || !string.IsNullOrWhiteSpace(info.reachBody))
+                    {
+                        checkpointPopup.OnClosed = () =>
+                        {
+                            Log("Уровень пройден!");
+                            SetInputLocked(true);
+                        };
+                        checkpointPopup.Show(info.title, info.reachBody);
+                        break;
+                    }
+                }
                 Log("Уровень пройден!");
                 SetInputLocked(true);
                 break;

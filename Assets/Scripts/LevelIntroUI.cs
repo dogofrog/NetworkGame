@@ -17,6 +17,7 @@ public class LevelIntroUI : MonoBehaviour
     {
         if (closeButton) closeButton.onClick.AddListener(Hide);
         Hide();
+        Show();
     }
 
     public void Show()

@@ -69,6 +69,17 @@ public class GameController : MonoBehaviour
         public int @while;
     }
 
+    [System.Serializable]
+    public struct CheckpointInfo
+    {
+        public string title;
+        [TextArea(3, 8)]  public string clickBody;  // при клике на объект — что это такое
+        [TextArea(3, 8)]  public string reachBody;  // при достижении — доп. информация
+    }
+
+    [Header("Checkpoint Descriptions (по порядку целей)")]
+    public List<CheckpointInfo> checkpointDescriptions = new();
+
     [Header("Command Limits (per checkpoint index)")]
     public List<CommandLimits> checkpointLimits = new();
 
@@ -207,6 +218,13 @@ public class GameController : MonoBehaviour
     }
 
     public bool AllTargetsCompleted => _currentTargetIndex >= targetCells.Count && targetCells.Count > 0;
+
+    public CheckpointInfo GetCheckpointInfo(int index)
+    {
+        if (checkpointDescriptions == null || index < 0 || index >= checkpointDescriptions.Count)
+            return new CheckpointInfo { title = "Цель достигнута", clickBody = "", reachBody = "" };
+        return checkpointDescriptions[index];
+    }
 
     public bool HasLevelIntro()
     {

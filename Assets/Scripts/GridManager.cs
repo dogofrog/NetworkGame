@@ -23,8 +23,6 @@ public class GridManager : MonoBehaviour
     public Vector3 origin = Vector3.zero;
 
     [Header("Level")]
-    public Vector2Int start = new Vector2Int(0, 0);
-    public Vector2Int goal  = new Vector2Int(7, 7);
     [Tooltip("Стенки между клетками (edge-walls)")]
     public List<EdgeWall> edgeWalls = new List<EdgeWall>();
     [Tooltip("Координаты ям (x,y) в пределах width/height")]
@@ -32,9 +30,7 @@ public class GridManager : MonoBehaviour
 
     [Header("Prefabs")]
     public GameObject tilePrefab;
-    public GameObject wallPrefab;     // префаб стены (ставится между клетками)
-    public GameObject goalPrefab;     // «компьютер»
-    public GameObject startMarkerPrefab;
+    public GameObject wallPrefab;
     public float wallYOffset = 0.5f;
     public Material pitMaterial;      // материал для клетки-ямы
     public Color pitFallbackColor = Color.yellow;
@@ -145,19 +141,6 @@ public class GridManager : MonoBehaviour
             wall.transform.rotation = EdgeWallRotation(w);
         }
 
-        // цель
-        if (goalPrefab != null)
-        {
-            var g = Instantiate(goalPrefab, propsRoot);
-            g.transform.position = CellToWorld(goal);
-        }
-
-        // старт
-        if (startMarkerPrefab != null)
-        {
-            var s = Instantiate(startMarkerPrefab, propsRoot);
-            s.transform.position = CellToWorld(start);
-        }
     }
 
     public void ClearAll()

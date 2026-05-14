@@ -20,19 +20,30 @@
 
 Unity WebGL-игра (ПК/браузер) — образовательный платформер про сетевые технологии для диплома.
 
-**Суть игры:** игрок управляет персонажем на клеточном поле 8×8, вводя последовательность команд (Up, Down, Left, Right, While). Задача — дойти до трёх целей в правильном порядке, используя ограниченный набор команд.
+**Суть игры:** игрок управляет персонажем на клеточном поле 8×8, вводя последовательность команд (Up, Down, Left, Right, While). Задача — дойти до целей в правильном порядке, используя ограниченный набор команд.
 
-**Образовательная концепция — 3 уровня:**
-- Уровень 1 — серверная часть и дата-центр (база данных, сервер приложений, серверный коммутатор)
-- Уровень 2 — сеть провайдера и маршрутизация
-- Уровень 3 — последняя миля и доступ к пользователю
+**Образовательная концепция — уровни:**
+- Уровень 0 — туториал (1 цель, нет препятствий, учим базовые команды)
+- Уровень 1 — серверная часть и дата-центр (3 цели: база данных, сервер приложений, коммутатор)
+- Уровень 2 — сеть провайдера и маршрутизация (3 цели + стены)
+- Уровень 3 — последняя миля (3 цели + стены + ямы)
 
-**Платформа:** WebGL (ПК/браузер)  
-**Одна сцена:** `Assets/Scenes/Level_1.unity`  
-**Рендер пайплайн:** URP (Universal Render Pipeline) — подтверждено, Global Volume уже есть в сцене  
-**Камера:** Perspective (переключили с Orthographic), вид сверху-сбоку ~60° по X  
+**Метафоры игры:**
+- Игрок = пакет данных
+- Стены = файрволы / занятые маршруты
+- Ямы = потеря пакета (коллизия в сети)
+- While = двигаться вдоль кабеля до упора
+- Лимит команд = TTL (Time To Live)
 
-**В проекте нет:** серверной части, базы данных, авторизации, многосценовой навигации, ScriptableObject, JSON — данные уровня задаются через инспектор.
+**Платформа:** WebGL (ПК/браузер)
+**Рендер пайплайн:** URP (Universal Render Pipeline)
+**Камера:** Perspective, вид сверху-сбоку ~60° по X
+
+**Сцены:**
+- `Assets/Scenes/Level_0.unity` — туториал (1 цель, без препятствий)
+- `Assets/Scenes/Level_Test.unity` — тестовая сцена (бывшая Level_1, для экспериментов)
+
+**В проекте нет:** серверной части, базы данных, авторизации, ScriptableObject, JSON — данные уровня задаются через инспектор.
 
 ---
 
@@ -45,11 +56,15 @@ Unity WebGL-игра (ПК/браузер) — образовательный п
 - Ввод через **физические 3D кнопки** (не Canvas UI кнопки)
 
 ### Цели (чекпоинты)
-- 3 цели, нужно пройти строго по порядку
-- Правильная цель → клетка красится в красный, ввод очищается, новые команды доступны
+- Цели нужно пройти строго по порядку
+- Правильная цель → клетка красится в красный, ввод очищается, попап с `reachBody`
 - Неправильная цель или пустая клетка → блокировка, только Reset
 - Яма → блокировка, только Reset
-- Последняя (3-я) цель → завершение уровня
+- Последняя цель → попап с `reachBody` → "Уровень пройден!"
+
+### Клик на цель (до достижения)
+- Клик на 3D объект цели → попап с `clickBody` (что это такое за устройство)
+- Работает через `TargetInfoTrigger.cs` + `OnMouseDown`
 
 ### Сброс
 - **Reset** (короткое нажатие) — возврат на последний чекпоинт, восстановление лимитов
@@ -59,7 +74,7 @@ Unity WebGL-игра (ПК/браузер) — образовательный п
 - Задаются как рёбра между клетками (`edgeWalls` в инспекторе GridManager)
 - `Vertical` = стена между (x,y) и (x+1,y)
 - `Horizontal` = стена между (x,y) и (x,y+1)
-- При встрече со стеной — персонаж пропускает ход в эту сторону, остальные команды продолжаются
+- При встрече со стеной — персонаж пропускает ход в эту сторону
 
 ### Ямы
 - Координаты задаются в `GridManager.pits`
@@ -72,8 +87,9 @@ Unity WebGL-игра (ПК/браузер) — образовательный п
 - Reset восстанавливает лимиты текущего чекпоинта
 
 ### Памятка уровня
-- Вызывается кликом по 3D-объекту `button_Game` (через `LevelIntroTrigger`)
-- Показывает `Title` и `Body` из `GameController.LevelIntroInfo`
+- **Авто-показ** при старте уровня (`LevelIntroUI.Start()`)
+- Повторный вызов кликом по 3D-объекту `button_Game`
+- Показывает `Title` и `Body` из `GameController.levelIntro`
 
 ---
 
@@ -83,21 +99,26 @@ Unity WebGL-игра (ПК/браузер) — образовательный п
 **Роль:** управляет состоянием игры, целями, чекпоинтами, лимитами команд.
 
 **Ключевые поля (в инспекторе):**
-- `agent` — ссылка на PlayerAgent
+- `start` — стартовая клетка персонажа
 - `targetPrefabs` / `targetCells` — список целей и их координаты
 - `checkpointLimits` — лимиты команд по чекпоинтам (массив CommandLimits)
-- `LevelIntroInfo` — заголовок и текст памятки уровня
+- `levelIntro` — `LevelIntroInfo`: `levelId`, `title`, `body` (памятка уровня)
+- `checkpointDescriptions` — массив `CheckpointInfo` для каждой цели
+
+**Структура `CheckpointInfo`:**
+- `title` — название устройства
+- `clickBody` — краткое описание (при клике на объект до достижения)
+- `reachBody` — развёрнутое описание (при достижении цели)
 
 **Ключевые методы:**
-- `TryConsume(Command cmd)` — попытка потратить лимит команды, возвращает bool
-- `GetRemaining(Command cmd)` — сколько раз ещё можно использовать команду
+- `TryConsume(Command cmd)` — попытка потратить лимит команды
+- `GetRemaining(Command cmd)` — сколько осталось
+- `GetCheckpointInfo(int index)` — вернуть CheckpointInfo по индексу цели
 - `BeginRun()` — вызывается перед запуском команд
 - `ResetLevel()` — сброс к последнему чекпоинту
 - `FullRestart()` — полный сброс к началу
-- `HasLevelIntro()` / `GetLevelIntroTitle()` / `BuildLevelIntroBody()` — памятка уровня
 
-**Enum RunOutcome:** `None`, `ReachedTarget`, `FellIntoPit`, `Mistake`, `AllCompleted`  
-**Свойства:** `LastRunOutcome`, `LastReachedTargetIndex`
+**Enum RunOutcome:** `None`, `ReachedTarget`, `FellIntoPit`, `Mistake`, `AllCompleted`
 
 ---
 
@@ -107,237 +128,272 @@ Unity WebGL-игра (ПК/браузер) — образовательный п
 **Ключевые поля (в инспекторе):**
 - `Width = 8`, `Height = 8`, `CellSize = 1` — размер сетки
 - `Origin = (0,0,0)` — начало координат поля
-- `tilePrefab` — префаб тайла (сейчас FloorTile, планируется tile_Game.fbx)
+- `tilePrefab` — префаб тайла
 - `wallPrefab` — префаб стены
 - `edgeWalls` — массив стен (EdgeWall: cell + orientation Vertical/Horizontal)
 - `pits` — массив координат ям
 - `pitMaterial` — материал для клеток-ям
-- `buildInEditMode` — если включено, поле перестраивается при изменениях в инспекторе
+- `buildInEditMode` — **держать выключенным** (иначе тайлы накапливаются в edit mode)
+- `tilesRoot / wallsRoot / propsRoot` — не назначать, создаются автоматически
+
+**ВАЖНО — что убрано из GridManager:**
+`goalPrefab`, `startMarkerPrefab`, `start`, `goal` — удалены. Спавн целей и персонажа — только через `GameController`.
 
 **Ключевые методы:**
-- `IsBlockedByWall(Vector2Int from, Vector2Int to)` — есть ли стена между клетками
-- `IsPit(Vector2Int cell)` — является ли клетка ямой
-- `SetCellColor(Vector2Int cell, Color color)` — красит клетку (используется для чекпоинтов)
-- `ResetTileColors()` — сбрасывает цвета клеток
-- `CellToWorld(Vector2Int cell)` — координаты клетки в мировые координаты
+- `IsBlockedByWall(Vector2Int from, Vector2Int to)`
+- `IsPit(Vector2Int cell)`
+- `SetCellColor(Vector2Int cell, Color color)` — красит клетку (чекпоинты)
+- `ResetTileColors()`
+- `CellToWorld(Vector2Int cell)`
 - `Build()` — (пере)строить поле
-
-**ВАЖНО — баг исправлен:** `OnValidate` теперь использует `EditorApplication.delayCall` вместо прямого вызова `Build()`, чтобы не было ошибки `DestroyImmediate not permitted`.
-
-**Размеры поля:** 8×8 клеток × cellSize 1 = **8×8 юнитов** в мировом пространстве. Тайлы высотой 0.5 (Scale Y = 0.5).
 
 ---
 
-### `CommandStation.cs` — НОВЫЙ контроллер ввода ⭐
-**Роль:** центральный мозг для 3D-кнопок. Управляет очередью команд, блокировкой ввода, логами. НЕ зависит от UICommandBuilder.
-
-**Файл:** `Assets/Scripts/CommandStation.cs`
+### `CommandStation.cs` — контроллер ввода ⭐
+**Роль:** центральный мозг для 3D-кнопок. Управляет очередью команд, блокировкой, логами.
 
 **Поля (назначать в инспекторе):**
-- `game` — ссылка на `GameController` ← **ОБЯЗАТЕЛЬНО НАЗНАЧИТЬ**
-- `commandsDisplay` — `TextMeshPro` (3D, World Space) для отображения введённых команд на экране клавиатуры
-- `logsDisplay` — `TextMeshPro` (3D, World Space) для дисплея логов (logs_Game)
-- `commandButtons` — массив `PhysicalButton3D` всех кнопок команд (для блокировки)
-- `runButton` — `PhysicalButton3D` кнопки start
-- `resetButton` — `PhysicalButton3D` кнопки reboot
+- `game` — ссылка на `GameController` ← **ОБЯЗАТЕЛЬНО**
+- `commandsDisplay` — `TextMeshPro` (3D) для очереди команд
+- `logsDisplay` — `TextMeshPro` (3D) для логов
+- `commandButtons` — массив `PhysicalButton3D` всех кнопок команд
+- `runButton` / `resetButton` — кнопки start и reboot
+- `checkpointPopup` — ссылка на `CheckpointPopupUI` ← **ОБЯЗАТЕЛЬНО для попапов**
 
-**Публичные методы (вызываются из PhysicalButton3D через UnityEvent):**
-- `AddUp()`, `AddDown()`, `AddLeft()`, `AddRight()`, `AddWhile()` — добавить команду в очередь
-- `TriggerRun()` — запустить выполнение команд
-- `TriggerReset()` — сброс к чекпоинту
-- `TriggerFullRestart()` — полный рестарт
+**Поведение при достижении цели:**
+- `ReachedTarget` → показывает `checkpointPopup` с `reachBody`, после закрытия разблокирует ввод
+- `AllCompleted` → показывает `checkpointPopup` с `reachBody` последней цели, после закрытия → "Уровень пройден!"
 
-**Как работает:** при `TriggerRun()` проверяет что очередь не пуста → вызывает `game.BeginRun()` → `game.agent.Run(queue)` → ждёт `OnRunFinished` → выводит результат в `logsDisplay`.
+---
+
+### `CheckpointPopupUI.cs` — попап при достижении цели ⭐
+**Роль:** показывается автоматически когда игрок достигает цели. Блокирует ввод до закрытия.
+
+**Файл:** `Assets/Scripts/CheckpointPopupUI.cs`
+
+**Поля (назначать в инспекторе):**
+- `panel` — GameObject панели
+- `titleText` / `bodyText` — TextMeshProUGUI
+- `closeButton` — кнопка закрытия
+
+**Важно:** `CheckpointPanel` должен быть **выключен** (inactive) по умолчанию в Hierarchy.
+
+**Публичные:**
+- `Show(string title, string body)` — показать попап
+- `Hide()` — скрыть и вызвать `OnClosed` коллбэк
+- `OnClosed` — `System.Action`, устанавливается из `CommandStation` перед `Show()`
+
+---
+
+### `TargetInfoTrigger.cs` — клик на цель ⭐
+**Роль:** вешается на префаб цели. При клике показывает `clickBody` из `checkpointDescriptions`.
+
+**Файл:** `Assets/Scripts/TargetInfoTrigger.cs`
+
+**Как работает:** `OnMouseDown` → `FindObjectOfType<GameController>()` + `FindObjectOfType<CheckpointPopupUI>(true)` → `popup.Show(info.title, info.clickBody)`
+
+**Требования:** на объекте должен быть Collider (не Trigger).
+
+**Примечание:** `FindObjectOfType<CheckpointPopupUI>(true)` — `true` обязателен, иначе не найдёт неактивный объект.
+
+---
+
+### `LevelLoader.cs` — переключение уровней ⭐
+**Роль:** загружает сцены по имени или по индексу в Build Settings.
+
+**Файл:** `Assets/Scripts/LevelLoader.cs`
+
+**Публичные методы:**
+- `Load(string sceneName)` — загрузить сцену по имени
+- `LoadNext()` — следующая сцена по buildIndex
+- `Reload()` — перезагрузить текущую сцену
+
+**Использование:** вешается на GameObject `LevelLoader` внутри префаба `LevelButtons`. PhysicalButton3D.onClick → `LevelLoader.Load("Level_0")`.
+
+---
+
+### `LevelButtons` (Prefab) ⭐
+**Роль:** набор 3D кнопок навигации по уровням. Общий префаб для всех сцен.
+
+**Файл:** `Assets/Prefabs/LevelButtons.prefab`
+
+**Структура:**
+```
+LevelButtons (префаб)
+├── LevelLoader (GameObject с LevelLoader.cs)
+├── LvlBtn_Test (PhysicalButton3D → LevelLoader.Load("Level_Test"))
+├── LvlBtn_0    (PhysicalButton3D → LevelLoader.Load("Level_0"))
+├── LvlBtn_1    (PhysicalButton3D → LevelLoader.Load("Level_1"))
+└── ...
+```
+
+**Обновление:** чтобы добавить новый уровень — открой префаб через "Open Prefab", добавь кнопку, сохрани. Изменение применится ко всем сценам автоматически.
 
 ---
 
 ### `PhysicalButton3D.cs` — универсальная 3D кнопка ⭐
 **Роль:** вешается на любой 3D-объект с коллайдером. Анимация нажатия + вызов действия.
 
-**Файл:** `Assets/Scripts/PhysicalButton3D.cs`
-
 **Поля:**
-- `pressDepth = 0.08f` — глубина нажатия (насколько кнопка уходит вниз)
+- `pressDepth = 0.08f` — глубина нажатия
 - `animSpeed = 20f` — скорость анимации
-- `onClick` — UnityEvent: что вызвать при клике
-- `onHold` — UnityEvent: что вызвать при удержании (необязательно)
-- `holdTime = 3f` — через сколько секунд считается удержание
+- `onClick` — UnityEvent при клике
+- `onHold` — UnityEvent при удержании
+- `holdTime = 3f` — через сколько секунд = удержание
 
-**Анимация:** при наведении кнопка чуть поднимается, при нажатии — уходит вниз, при отпускании — возвращается. Всё через Lerp по локальной позиции Y.
-
-**Требования:** на объекте должен быть **Collider** (не Trigger). Без коллайдера `OnMouseDown` не сработает.
-
+**Требования:** Collider (не Trigger) на объекте.
 **Публичный метод:** `SetInteractable(bool)` — блокирует/разблокирует кнопку.
 
 ---
 
-### `LevelIntroUI.cs` — попап памятки уровня ⭐
-**Роль:** независимый скрипт для показа окна с описанием уровня. Вешается на Canvas (Screen Space Overlay).
+### `LevelIntroUI.cs` — попап памятки уровня
+**Роль:** авто-показ при старте уровня + повторный вызов через button_Game.
 
-**Поля (назначать в инспекторе):**
-- `game` — ссылка на GameController
-- `panel` — GameObject панели (показывать/скрывать)
-- `titleText` / `bodyText` — TextMeshProUGUI
-- `closeButton` — кнопка закрытия
+**Поведение:** `Start()` → `Hide()` → `Show()` (если `game.HasLevelIntro()`).
 
-**Публичные методы:**
-- `Show()` — вызывается из `LevelIntroTrigger` при клике на `button_Game`
-- `Hide()` — закрыть панель (также вешается на closeButton)
+**Поля:** `game`, `panel`, `titleText`, `bodyText`, `closeButton`
+
+---
+
+### `LevelIntroTrigger.cs` — триггер памятки
+`OnMouseDown` → `ui.Show()`. Вешается на `button_Game`.
 
 ---
 
 ### `PlayerAgent.cs` — движение персонажа
-**Роль:** выполняет команды, двигает персонажа по клеткам, проверяет стены и ямы.
-
-**Ключевые методы:**
-- `Run(List<Command> commands)` — запустить выполнение команд
-- `MoveUntilBlocked(dir, callback)` — While-команда
-- `MoveTo(Vector2Int cell)` — плавное перемещение с вращением
-
-**Callbacks:**
-- `OnRunFinished` — событие, когда команды выполнены
+- `Run(List<Command> commands)` — запустить выполнение
+- `OnRunFinished` — событие по завершении
 - `OnCellChanged` — событие при каждом шаге
 - `IsBusy` — true пока выполняются команды
 
 ---
 
-### `LevelIntroTrigger.cs` — памятка уровня
-**Роль:** вешается на 3D-объект `button_Game` с коллайдером. При клике вызывает `LevelIntroUI.Show()`.
-
-**Как работает:** `OnMouseDown` → `ui.Show()`.
-
----
-
 ### `TargetPoint.cs` — компонент цели
-**Роль:** вешается на префаб цели. `SetCompleted(bool)` — деактивирует/реактивирует цель.
+`index` — порядковый номер цели. `SetCompleted(bool)` — деактивирует визуально.
 
 ---
 
-## Дизайн-концепция сцены (подробно)
+## Дизайн-концепция сцены
 
-### Общая идея
-Игрок видит **рабочий стол в мастерской** — вид сверху-сбоку ~35-45°. Фон — синяя чертёжная бумага (blueprint). Всё физическое, 3D. Никаких Canvas UI кнопок для геймплея — только 3D объекты.
-
-VHS-эффект: поверх всей сцены — полупрозрачные scanlines как от камеры наблюдения.
+Игрок видит **рабочий стол в мастерской** — вид сверху-сбоку. Фон — синяя чертёжная бумага (blueprint). Всё физическое, 3D. VHS-эффект: scanlines поверх сцены.
 
 ### Элементы сцены и их статус
 
-#### ✅ `BackGround` (Plane + Table_Mat)
-Синяя плоскость как поверхность стола. Материал `Table_Mat` уже назначен. Может иметь сетку-blueprint поверх, но пока просто синий.
-
-#### ✅ `gameboy` (3D модель, сделана пользователем в Blender)
-Корпус игрового устройства — главный элемент сцены. Внутри него визуально располагается поле (GridManager генерирует тайлы внутри).
-
-**Размеры внутренней полости** должны совпадать с сеткой: **8×8 юнитов**.  
-Толщина стенок корпуса: ~0.5-1 юнит.  
-Глубина полости: ~2 юнита (тайлы 0.5 высотой + стены + персонаж).
-
-Внизу корпуса две кнопки: `start` и `reboot`.
-
-#### ✅ `start` (3D модель)
-`PhysicalButton3D` → `onClick` → `CommandStation.TriggerRun` ✅
-
-#### ✅ `reboot` (3D модель)
-`PhysicalButton3D` → `onClick` → `CommandStation.TriggerReset`, `onHold` → `CommandStation.TriggerFullRestart` ✅
-
-#### ✅ `logs_Game` (3D модель FBX, в сцене, дисплей настроен)
-Дисплей для игровых логов ("Уровень пройден!", "Неверная клетка. Нажмите Reset." и т.д.).  
-3D TextMeshPro (`logsDisplay`) назначен в `CommandStation`. Работает.
-
-#### ✅ `button_Game` (3D объект с LevelIntroTrigger)
-Кнопка-"книжка" — вызов памятки уровня. Уже работает.
-
-#### ✅ Клавиатура (3D модель готова, в сцене)
-3D устройство с кнопками Up/Down/Left/Right/While. На каждой кнопке — `PhysicalButton3D`, подключён к `CommandStation`.  
-Над клавиатурой — экран с 3D TextMeshPro (`commandsDisplay`) — выводит введённые команды.  
-Иерархия: `Keyboard` → `Keyboard` → `Up`, `Down`, `Left`, `Right`, `While`.
-
-#### ❌ Провода
-Статичные 3D модели, соединяющие gameboy с клавиатурой и logs_Game. Делает пользователь в Blender.
-
-#### ❌ VHS-оверлей (в конце)
-UI Canvas (Screen Space Overlay) поверх всей сцены:
-- Текстура scanlines (полупрозрачная, горизонтальные полосы)
-- Нижний правый угол: TextMeshPro с номером уровня, прогрессом, датой
-
-#### ❌ Кнопки уровней (слева, вертикально)
-Несколько 3D кнопок для навигации между уровнями. Делается в конце.
-
-#### ❌ Робот-подсказчик (в самом конце, если получится)
-Анимированный 3D объект, подлетающий к игроку с подсказкой. Сложно, fallback — UI всплывающее окно.
+| Элемент | Статус | Описание |
+|---|---|---|
+| `BackGround` | ✅ | Plane + Table_Mat (синий фон) |
+| `gameboy` | ✅ | 3D корпус устройства (Blender FBX) |
+| `start` | ✅ | PhysicalButton3D → TriggerRun |
+| `reboot` | ✅ | PhysicalButton3D → TriggerReset / TriggerFullRestart |
+| `logs_Game` | ✅ | 3D дисплей логов (logsDisplay) |
+| `button_Game` | ✅ | Памятка уровня (LevelIntroTrigger) |
+| Клавиатура | ✅ | 5 кнопок + экран команд (commandsDisplay) |
+| `LevelButtons` | ✅ | Префаб кнопок уровней (LevelLoader) |
+| Canvas попапы | ✅ | LevelIntroPanel + CheckpointPanel |
+| Провода | ❌ | Blender, соединяют устройства |
+| VHS-оверлей | ❌ | Canvas scanlines + TextMeshPro с номером уровня |
+| Робот-подсказчик | ❌ | Опционально, в самом конце |
 
 ---
 
-## Текущее состояние на момент остановки
+## Текущее состояние
 
-### Что сделано
-- [x] Камера — **Perspective**, вид сверху-сбоку
-- [x] Blueprint фон (Plane + `Table_Mat`)
-- [x] `PhysicalButton3D.cs` — работает (анимация нажатия, onClick/onHold)
-- [x] `CommandStation.cs` — работает, полностью независим от UICommandBuilder
-- [x] 3D клавиатура с кнопками Up/Down/Left/Right/While — **в сцене, все кнопки подключены**
-- [x] `start` → `TriggerRun`, `reboot` → `TriggerReset` / `TriggerFullRestart`
-- [x] Экран команд (3D TextMeshPro) на клавиатуре — **назначен в CommandStation.commandsDisplay**
-- [x] Экран логов (3D TextMeshPro) на `logs_Game` — **назначен в CommandStation.logsDisplay**
-- [x] `UICommandBuilder` — **удалён**, старый Canvas очищен (остался только LevelIntroPanel)
-- [x] `LevelIntroUI.cs` написан, `LevelIntroTrigger` переключён на него
-- [x] `button_Game` — памятка уровня работает через `LevelIntroUI`
-- [x] `buildInEditMode` выключен — тайлы не накапливаются в edit mode
-- [x] Баг `DestroyImmediate` в `GridManager.OnValidate` — исправлен
-- [x] **Настройки графики URP улучшены** (файлы в `Assets/Settings/`):
-  - MSAA: 1x → **4x** (сглаживание краёв)
-  - Shadow Distance: 50 → **20** (чётче тени на маленькой сцене)
-  - Shadow Normal Bias: 0.5 → **0.2** (тени не отрываются от объектов)
-  - SSAO Intensity: 0.4 → **1.5**, Radius: 0.3 → **0.6**, BlurQuality: Low → **High** (глубина сцены)
-  - Color Adjustments в Global Volume: Contrast **+25**, Saturation **+10**
+### Что сделано (вся логика готова)
 
-### Что НЕ сделано (следующий фронт работ)
+**Геймплей:**
+- [x] 3D клавиатура + кнопки start/reboot — работают
+- [x] Команды Up/Down/Left/Right/While — работают
+- [x] Стены, ямы, лимиты команд — работают
+- [x] Reset / Full Restart — работают
+
+**Образовательная система (полностью):**
+- [x] `LevelIntroUI` — авто-показ при старте + кнопка повторного вызова
+- [x] `CheckpointPopupUI` — попап при достижении цели (reachBody), блокирует ввод до закрытия
+- [x] `TargetInfoTrigger` — клик на цель показывает clickBody
+- [x] `AllCompleted` — сначала попап reachBody, потом "Уровень пройден!"
+- [x] `GameController.checkpointDescriptions` — массив с title/clickBody/reachBody на каждую цель
+
+**Уровни и навигация:**
+- [x] `LevelLoader.cs` — Load / LoadNext / Reload
+- [x] `LevelButtons` (Prefab) — кнопки TEST/0/1/2 с PhysicalButton3D
+- [x] Сцены: `Level_0` (туториал), `Level_Test` (тестовая)
+
+**Графика:**
+- [x] URP: MSAA 4x, тени, SSAO, Bloom, Vignette, Contrast +25
+
+**Очистка:**
+- [x] GridManager — убраны лишние поля (goalPrefab, startMarkerPrefab, start, goal)
+- [x] UICommandBuilder — удалён
+
+### Что НЕ сделано
 
 **Следующая сессия начинается с:**
-> Заполнить образовательный контент — тексты для `LevelIntroInfo` в GameController (заголовок и описание уровня, что такое сервер, база данных, коммутатор). Это нужно для диплома.
+> Дизайн пазлов уровней — расставить цели, стены, ямы на поле. Начать с Level_0 (туториал, 1 цель) и Level_1 (3 цели, без препятствий).
 
-1. **Образовательный контент** ← **НАЧАТЬ ОТСЮДА** — заполнить `LevelIntroInfo` в `GameController` (тексты уровней), настроить 3 цели и их чекпоинт-описания
-2. **Провода** — статичные 3D модели в Blender, соединяют gameboy / клавиатуру / logs_Game
-3. **VHS-оверлей** — UI Canvas (Screen Space Overlay): scanlines текстура + TextMeshPro с номером уровня внизу справа
-4. **Кнопки уровней** — несколько 3D кнопок слева для навигации между уровнями
-5. **Робот-подсказчик** — опционально, сложно
+1. **Дизайн пазлов** ← **НАЧАТЬ ОТСЮДА**
+   - Level_0: 1 цель, нет стен/ям — придумать интересный маршрут
+   - Level_1: 3 цели (БД → Сервер → Коммутатор), нет препятствий
+   - Level_2: 3 цели + стены (файрволы)
+   - Level_3: 3 цели + стены + ямы (потеря пакетов)
+
+2. **Образовательные тексты** — заполнить LevelIntroInfo и checkpointDescriptions для каждого уровня (Level_0 уже частично заполнен тестовыми текстами)
+
+3. **Создать сцены Level_1, Level_2, Level_3** — дублированием Level_0, добавить в Build Settings
+
+4. **VHS-оверлей** — Canvas (Screen Space Overlay): scanlines + TextMeshPro с номером уровня
+
+5. **Провода** — Blender, соединяют gameboy / клавиатуру / logs_Game
+
+6. **Робот-подсказчик** — опционально
 
 ---
 
 ## Технические заметки
 
-### Как работает OnMouseDown (важно!)
-`OnMouseDown`, `OnMouseEnter`, `OnMouseExit`, `OnMouseUp` — Unity автоматически вызывает их на объектах с Collider при попадании луча от камеры. Работает без Physics Raycaster, работает в WebGL.
+### Как работает OnMouseDown
+`OnMouseDown` / `OnMouseEnter` / `OnMouseExit` — Unity вызывает автоматически при попадании луча от камеры. Работает в WebGL без Physics Raycaster.
 
-**Требования:**
-- На объекте должен быть Collider (Box, Sphere, Capsule, Mesh — любой)
-- Collider НЕ должен быть Trigger (`Is Trigger` = false)
-- Камера должна видеть объект (не перекрыт другим Collider'ом)
+**Требования:** Collider (не Trigger) на объекте, объект виден камере.
+
+### Попапы (Canvas)
+Оба попапа — дети Canvas (Screen Space Overlay):
+- `LevelIntroPanel` — LevelIntroUI компонент
+- `CheckpointPanel` — CheckpointPopupUI компонент, **должен быть inactive по умолчанию**
+
+Структура CheckpointPanel:
+```
+CheckpointPanel (inactive по умолчанию)
+└── Window
+    ├── TitleText (TextMeshProUGUI)
+    ├── BodyText (TextMeshProUGUI)
+    └── CloseButton
+```
+
+### FindObjectOfType и неактивные объекты
+`FindObjectOfType<T>(true)` — **true обязателен** для поиска среди неактивных объектов.
+Используется в `TargetInfoTrigger.Awake()`.
 
 ### Дисплеи (commandsDisplay / logsDisplay)
-Используются **3D TextMeshPro** объекты (не Canvas). Создаются через Hierarchy → 3D Object → Text - TextMeshPro, позиционируются прямо на поверхности 3D моделей. Тип поля в `CommandStation` — `TextMeshPro` (не `TextMeshProUGUI`).
+**3D TextMeshPro** объекты (не Canvas). Тип поля в CommandStation — `TextMeshPro` (не `TextMeshProUGUI`).
 
 ### Размеры для Blender
-- Поле внутри gameboy: **8×8 юнитов** (ширина и глубина)
-- Тайлы: 1×1 юнит в основании, 0.5 юнит высота
-- 1 Unity unit ≈ 1 Blender unit при стандартном импорте FBX
+- Поле внутри gameboy: **8×8 юнитов**
+- Тайлы: 1×1 юнит основание, 0.5 высота
+- 1 Unity unit = 1 Blender unit при импорте FBX
 
-### URP и WebGL
-- URP полностью совместим с WebGL
-- Global Volume уже есть в сцене — можно добавлять post-processing эффекты
-- World Space Canvas работает в WebGL без проблем
-- `OnMouseDown` работает в WebGL
+### Build Settings (порядок сцен)
+```
+0: Level_0      ← туториал
+1: Level_1
+2: Level_2
+3: Level_3
+4: Level_Test   ← тестовая, в конце
+```
 
-### Настройки графики URP (текущие, файлы в Assets/Settings/)
-- **PC_RPAsset.asset** — главный URP ассет для PC:
-  - `m_MSAA: 4` — 4x сглаживание
-  - `m_ShadowDistance: 20` — дистанция теней
-  - `m_MainLightShadowmapResolution: 2048` — разрешение теней
-  - `m_SoftShadowsSupported: 1`, `m_SoftShadowQuality: 3` — мягкие тени High
-  - `m_ShadowNormalBias: 0.2` — тени не отрываются от объектов
-- **PC_Renderer.asset** — SSAO включён:
-  - `Intensity: 1.5`, `Radius: 0.6`, `Samples: 2` (High), `BlurQuality: 2`
-- **Global Volume** в сцене (SampleSceneProfile): Tonemapping ACES, Bloom 0.25, Vignette 0.2, Color Adjustments Contrast +25 Saturation +10
+### URP настройки (файлы в Assets/Settings/)
+- **PC_RPAsset.asset**: MSAA 4x, ShadowDistance 20, SoftShadows High, NormalBias 0.2
+- **PC_Renderer.asset**: SSAO Intensity 1.5, Radius 0.6, High
+- **SampleSceneProfile**: Tonemapping ACES, Bloom 0.25, Vignette 0.2, Contrast +25, Saturation +10
 
 ---
 
@@ -348,77 +404,83 @@ Assets/
 ├── Materials/
 │   ├── Character.mat
 │   ├── Fish_Mat.mat
-│   ├── Ground_...mat
 │   ├── Pit_Mat.mat
-│   ├── Table_Mat.mat    ← материал стола/фона (синий)
+│   ├── Table_Mat.mat
 │   └── Wall_mat.mat
 ├── Prefabs/
-│   ├── button_Game.fbx  ← 3D модель кнопки-книжки (памятка уровня)
-│   ├── logs_Game.fbx    ← 3D модель дисплея логов
-│   ├── tile_Game.fbx    ← 3D модель тайла (можно назначить в GridManager)
+│   ├── LevelButtons.prefab  ← кнопки навигации по уровням ⭐
+│   ├── button_Game.fbx
+│   ├── logs_Game.fbx
+│   ├── tile_Game.fbx
 │   ├── Character.prefab
-│   ├── FloorTile.prefab ← текущий тайл (Cube, Scale Y=0.5)
+│   ├── FloorTile.prefab
 │   ├── Wall.prefab
-│   └── Fish.prefab      ← текущий префаб цели
+│   └── Fish.prefab
 ├── Scripts/
-│   ├── CommandStation.cs    ← центр управления 3D кнопками ⭐
-│   ├── PhysicalButton3D.cs  ← универсальная 3D кнопка ⭐
-│   ├── LevelIntroUI.cs      ← попап памятки уровня ⭐
-│   ├── LevelIntroTrigger.cs ← триггер клика на button_Game
+│   ├── CommandStation.cs      ← центр управления ⭐
+│   ├── PhysicalButton3D.cs    ← универсальная 3D кнопка ⭐
+│   ├── CheckpointPopupUI.cs   ← попап при достижении цели ⭐
+│   ├── TargetInfoTrigger.cs   ← клик на цель → clickBody ⭐
+│   ├── LevelLoader.cs         ← переключение уровней ⭐
+│   ├── LevelIntroUI.cs
+│   ├── LevelIntroTrigger.cs
 │   ├── GameController.cs
 │   ├── GridManager.cs
 │   ├── PlayerAgent.cs
 │   └── TargetPoint.cs
 ├── Settings/
-│   ├── PC_RPAsset.asset     ← URP настройки (MSAA, тени, SSAO)
-│   ├── PC_Renderer.asset    ← SSAO renderer feature
-│   └── SampleSceneProfile.asset ← Global Volume профиль
+│   ├── PC_RPAsset.asset
+│   ├── PC_Renderer.asset
+│   └── SampleSceneProfile.asset
 └── Scenes/
-    └── Level_1.unity
+    ├── Level_0.unity     ← туториал (1 цель, нет препятствий)
+    └── Level_Test.unity  ← тестовая сцена
 ```
 
-## Иерархия сцены (текущая)
+## Иерархия сцены (актуальная)
 
 ```
-Level_1
-├── Main Camera          ← Perspective, X rotation ~60°
+Level_X
+├── Main Camera            ← Perspective, X rotation ~60°
 ├── Directional Light
-├── Global Volume        ← URP post-processing (SampleSceneProfile)
-├── GridManager          ← генерирует поле 8×8 (buildInEditMode=false)
-├── GameController       ← логика игры
-├── Canvas               ← только LevelIntroPanel (Screen Space Overlay)
-│   └── LevelIntroPanel  ← попап памятки уровня (LevelIntroUI компонент)
+├── Global Volume          ← URP post-processing
+├── GridManager            ← поле 8×8 (buildInEditMode=false)
+├── GameController         ← логика игры, тексты уровня
+├── Canvas                 ← Screen Space Overlay
+│   ├── LevelIntroPanel    ← LevelIntroUI (авто-показ при старте)
+│   └── CheckpointPanel    ← CheckpointPopupUI (inactive по умолчанию!)
+│       └── Window
+│           ├── TitleText
+│           ├── BodyText
+│           └── CloseButton
 ├── EventSystem
-├── Tiles / Walls / Props ← генерируется GridManager (пусто в edit mode)
-├── button_Game          ← 3D кнопка памятки уровня (LevelIntroTrigger)
-├── BackGround           ← Plane с Table_Mat (синий фон-blueprint)
-├── gameboy              ← 3D корпус устройства (Blender FBX)
-│   ├── start            ← PhysicalButton3D → CommandStation.TriggerRun
-│   └── reboot           ← PhysicalButton3D → TriggerReset / TriggerFullRestart
-├── Keyboard             ← 3D клавиатура (Blender FBX)
+├── BackGround             ← Plane + Table_Mat
+├── gameboy                ← 3D корпус (Blender FBX)
+│   ├── start              ← PhysicalButton3D → TriggerRun
+│   └── reboot             ← PhysicalButton3D → TriggerReset / TriggerFullRestart
+├── Keyboard               ← 3D клавиатура
 │   └── Keyboard
-│       ├── Up / Down / Left / Right / While ← PhysicalButton3D → CommandStation.Add*
-│       └── Display_Commands → Commands (3D TextMeshPro = commandsDisplay)
-├── CommandStation       ← GameObject с CommandStation.cs
-└── logs_Game            ← 3D дисплей логов (LogsText = 3D TextMeshPro = logsDisplay)
+│       ├── Up/Down/Left/Right/While ← PhysicalButton3D → CommandStation.Add*
+│       └── Display_Commands → Commands (3D TextMeshPro)
+├── CommandStation         ← CommandStation.cs
+├── logs_Game              ← 3D дисплей логов
+├── button_Game            ← LevelIntroTrigger (памятка)
+├── LevelButtons           ← Prefab: кнопки навигации по уровням
+└── Tiles / Walls / Props  ← генерируется GridManager в Play mode
 ```
 
 ---
 
 ## Что сказать пользователю при старте новой сессии
 
-Когда пользователь попросит прочитать CLAUDE.md и продолжить — скажи примерно следующее:
+**"Контекст загружен. Вся игровая логика и образовательная система полностью работают.**
 
-**"Контекст загружен. Игровая механика полностью работает: 3D клавиатура, кнопки, дисплеи, тени, SSAO — всё настроено.**
+**Что готово:** 3D клавиатура, кнопки, дисплеи, попапы (clickBody/reachBody), памятка уровня, переключение уровней через LevelButtons префаб, Level_0 и Level_Test сцены.
 
-**Ближайшая задача — образовательный контент:**
+**Ближайшая задача — дизайн пазлов:**
 
-Нужно заполнить тексты для памятки уровня. В Unity:
-1. Выбери `GameController` в Hierarchy
-2. В Inspector найди поле `Level Intro Info`
-3. Заполни `Title` (например: "Уровень 1 — Серверная часть")
-4. Заполни `Body` — описание уровня (что такое сервер, база данных, коммутатор)
+Нужно придумать и настроить конкретные уровни — расставить цели, стены, ямы. Начинаем с Level_0 (1 цель, нет препятствий) и Level_1 (3 цели: БД → Сервер → Коммутатор).
 
-Также нужно расставить 3 цели на поле и назначить им координаты в `GameController.targetCells`.
+В GameController выставляешь `targetCells` (координаты целей), в GridManager — `edgeWalls` (стены) и `pits` (ямы).
 
-Хочешь начнём с текстов или сначала разберёмся с расстановкой целей?"**
+Хочешь начнём с дизайна пазлов или сначала создадим сцены Level_1/2/3?"**
