@@ -9,7 +9,7 @@ public class CommandStation : MonoBehaviour
     [Header("Core")]
     public GameController game;
 
-    [Header("Displays (World Space TextMeshPro)")]
+    [Header("Displays (3D TextMeshPro)")]
     public TextMeshPro commandsDisplay;
     public TextMeshPro logsDisplay;
 

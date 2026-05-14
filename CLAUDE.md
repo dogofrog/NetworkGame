@@ -171,13 +171,18 @@ Unity WebGL-игра (ПК/браузер) — образовательный п
 
 ---
 
-### `UICommandBuilder.cs` — СТАРЫЙ контроллер (будет удалён)
-**Роль:** старая UI система на Canvas. Пока работает параллельно, будет удалена когда CommandStation полностью возьмёт на себя всю логику.
+### `LevelIntroUI.cs` — попап памятки уровня ⭐
+**Роль:** независимый скрипт для показа окна с описанием уровня. Вешается на Canvas (Screen Space Overlay).
 
-**Добавлены публичные методы** (для временного использования):
-`AddUp()`, `AddDown()`, `AddLeft()`, `AddRight()`, `AddWhile()`, `TriggerRun()`, `TriggerReset()`, `TriggerFullRestart()`
+**Поля (назначать в инспекторе):**
+- `game` — ссылка на GameController
+- `panel` — GameObject панели (показывать/скрывать)
+- `titleText` / `bodyText` — TextMeshProUGUI
+- `closeButton` — кнопка закрытия
 
-**Когда удалять:** после того как 3D клавиатура готова и CommandStation полностью работает.
+**Публичные методы:**
+- `Show()` — вызывается из `LevelIntroTrigger` при клике на `button_Game`
+- `Hide()` — закрыть панель (также вешается на closeButton)
 
 ---
 
@@ -197,11 +202,9 @@ Unity WebGL-игра (ПК/браузер) — образовательный п
 ---
 
 ### `LevelIntroTrigger.cs` — памятка уровня
-**Роль:** вешается на 3D-объект `button_Game` с коллайдером. При клике показывает памятку уровня.
+**Роль:** вешается на 3D-объект `button_Game` с коллайдером. При клике вызывает `LevelIntroUI.Show()`.
 
-**Как работает:** `OnMouseDown` → raycast от камеры → вызов `UICommandBuilder.ShowLevelIntro()`.
-
-**Примечание:** когда UICommandBuilder будет удалён, этот скрипт нужно переключить на новый показ памятки.
+**Как работает:** `OnMouseDown` → `ui.Show()`.
 
 ---
 
@@ -231,28 +234,23 @@ VHS-эффект: поверх всей сцены — полупрозрачн�
 
 Внизу корпуса две кнопки: `start` и `reboot`.
 
-#### ✅ `start` (3D модель, сделана пользователем)
-Кнопка запуска выполнения команд. Уже есть в сцене.  
-Нужно: `PhysicalButton3D` → `onClick` → `CommandStation.TriggerRun`
+#### ✅ `start` (3D модель)
+`PhysicalButton3D` → `onClick` → `CommandStation.TriggerRun` ✅
 
-#### ✅ `reboot` (3D модель, сделана пользователем)
-Кнопка сброса. Уже есть в сцене.  
-Нужно: `PhysicalButton3D` → `onClick` → `CommandStation.TriggerReset`, `onHold` → `CommandStation.TriggerFullRestart`
+#### ✅ `reboot` (3D модель)
+`PhysicalButton3D` → `onClick` → `CommandStation.TriggerReset`, `onHold` → `CommandStation.TriggerFullRestart` ✅
 
-#### ✅ `logs_Game` (3D модель FBX, уже в сцене)
+#### ✅ `logs_Game` (3D модель FBX, в сцене, дисплей настроен)
 Дисплей для игровых логов ("Уровень пройден!", "Неверная клетка. Нажмите Reset." и т.д.).  
-Находится внизу-справа от геймбоя, соединён проводами.  
-Нужно: добавить World Space Canvas с TextMeshPro поверх экрана.
+3D TextMeshPro (`logsDisplay`) назначен в `CommandStation`. Работает.
 
 #### ✅ `button_Game` (3D объект с LevelIntroTrigger)
 Кнопка-"книжка" — вызов памятки уровня. Уже работает.
 
-#### ❌ Клавиатура (ещё не сделана)
-3D устройство с ~8 кнопками команд. Находится сверху-справа от геймбоя, соединено проводами.  
-На клавиатуре: кнопки Up/Down/Left/Right/While + возможно дополнительные.  
-Над клавиатурой: экран для отображения введённых команд.  
-**Пользователь делает 3D модель в Blender.**  
-**Временное решение:** 5 примитивов (Cylinder) как заглушки.
+#### ✅ Клавиатура (3D модель готова, в сцене)
+3D устройство с кнопками Up/Down/Left/Right/While. На каждой кнопке — `PhysicalButton3D`, подключён к `CommandStation`.  
+Над клавиатурой — экран с 3D TextMeshPro (`commandsDisplay`) — выводит введённые команды.  
+Иерархия: `Keyboard` → `Keyboard` → `Up`, `Down`, `Left`, `Right`, `While`.
 
 #### ❌ Провода
 Статичные 3D модели, соединяющие gameboy с клавиатурой и logs_Game. Делает пользователь в Blender.
@@ -273,55 +271,36 @@ UI Canvas (Screen Space Overlay) поверх всей сцены:
 ## Текущее состояние на момент остановки
 
 ### Что сделано
-- [x] Камера переключена на **Perspective**
+- [x] Камера — **Perspective**, вид сверху-сбоку
 - [x] Blueprint фон (Plane + `Table_Mat`)
-- [x] `PhysicalButton3D.cs` написан и работает (анимация нажатия подтверждена)
-- [x] `CommandStation.cs` написан (независимый от UICommandBuilder)
-- [x] Публичные методы добавлены в `UICommandBuilder.cs` для совместимости
-- [x] Баг `DestroyImmediate` в `GridManager.OnValidate` — **исправлен** (через `EditorApplication.delayCall`)
-- [x] 3D модели `gameboy`, `reboot`, `start`, `logs_Game` — **созданы в Blender и добавлены в сцену**
-- [x] `CLAUDE.md` создан для переноса контекста между машинами
+- [x] `PhysicalButton3D.cs` — работает (анимация нажатия, onClick/onHold)
+- [x] `CommandStation.cs` — работает, полностью независим от UICommandBuilder
+- [x] 3D клавиатура с кнопками Up/Down/Left/Right/While — **в сцене, все кнопки подключены**
+- [x] `start` → `TriggerRun`, `reboot` → `TriggerReset` / `TriggerFullRestart`
+- [x] Экран команд (3D TextMeshPro) на клавиатуре — **назначен в CommandStation.commandsDisplay**
+- [x] Экран логов (3D TextMeshPro) на `logs_Game` — **назначен в CommandStation.logsDisplay**
+- [x] `UICommandBuilder` — **удалён**, старый Canvas очищен (остался только LevelIntroPanel)
+- [x] `LevelIntroUI.cs` написан, `LevelIntroTrigger` переключён на него
+- [x] `button_Game` — памятка уровня работает через `LevelIntroUI`
+- [x] `buildInEditMode` выключен — тайлы не накапливаются в edit mode
+- [x] Баг `DestroyImmediate` в `GridManager.OnValidate` — исправлен
+- [x] **Настройки графики URP улучшены** (файлы в `Assets/Settings/`):
+  - MSAA: 1x → **4x** (сглаживание краёв)
+  - Shadow Distance: 50 → **20** (чётче тени на маленькой сцене)
+  - Shadow Normal Bias: 0.5 → **0.2** (тени не отрываются от объектов)
+  - SSAO Intensity: 0.4 → **1.5**, Radius: 0.3 → **0.6**, BlurQuality: Low → **High** (глубина сцены)
+  - Color Adjustments в Global Volume: Contrast **+25**, Saturation **+10**
 
-### Что НЕ сделано (текущий фронт работ)
+### Что НЕ сделано (следующий фронт работ)
 
-**Ближайшее — нужно сделать прямо сейчас:**
+**Следующая сессия начинается с:**
+> Заполнить образовательный контент — тексты для `LevelIntroInfo` в GameController (заголовок и описание уровня, что такое сервер, база данных, коммутатор). Это нужно для диплома.
 
-1. **Создать 5 временных кнопок команд** (пока 3D клавиатура не готова):
-   - В Hierarchy → Create Empty → назови `Keyboard_Placeholder`
-   - Внутри создай 5 × Cylinder: `btn_Up`, `btn_Down`, `btn_Left`, `btn_Right`, `btn_While`
-   - На каждый: Add Component → `PhysicalButton3D`
-   - Убедись что на каждом есть Collider (у Cylinder есть Capsule Collider — ок)
-
-2. **Назначить onClick на каждой кнопке** (инспектор → PhysicalButton3D → onClick → +):
-   - `btn_Up` → перетащи объект `CommandStation` → выбери `CommandStation.AddUp`
-   - `btn_Down` → `CommandStation.AddDown`
-   - `btn_Left` → `CommandStation.AddLeft`
-   - `btn_Right` → `CommandStation.AddRight`
-   - `btn_While` → `CommandStation.AddWhile`
-
-3. **Назначить start и reboot** на CommandStation (инспектор → PhysicalButton3D):
-   - `start` → `onClick` → `CommandStation.TriggerRun`
-   - `reboot` → `onClick` → `CommandStation.TriggerReset`
-   - `reboot` → `onHold` → `CommandStation.TriggerFullRestart`, `holdTime = 3`
-
-4. **Назначить game в CommandStation** (инспектор → CommandStation → поле Game → перетащи GameController)
-
-5. **Проверить** что всё работает: нажать несколько btn_Up/btn_Right → нажать start → персонаж должен пойти
-
-**После того как это заработает:**
-
-6. Сделать реальную 3D клавиатуру в Blender (корпус + 8 кнопок)
-7. Импортировать, поставить в сцену справа-сверху от gameboy
-8. Перенести `PhysicalButton3D` со старых Cylinder на новые 3D кнопки
-9. Удалить `Keyboard_Placeholder`
-10. Добавить World Space Canvas на экран клавиатуры (TextMeshPro для команд)
-11. Добавить World Space Canvas на `logs_Game` (TextMeshPro для логов)
-12. Назначить `commandsDisplay` и `logsDisplay` в инспекторе CommandStation
-13. **Удалить** `UICommandBuilder` компонент с Canvas и все старые UI-кнопки
-14. Сделать провода (3D модели в Blender)
-15. VHS-оверлей (UI Canvas Overlay + scanlines текстура + TextMeshPro инфо)
-16. Кнопки уровней (слева, вертикально)
-17. Образовательный контент (тексты уровней, сообщения чекпоинтов)
+1. **Образовательный контент** ← **НАЧАТЬ ОТСЮДА** — заполнить `LevelIntroInfo` в `GameController` (тексты уровней), настроить 3 цели и их чекпоинт-описания
+2. **Провода** — статичные 3D модели в Blender, соединяют gameboy / клавиатуру / logs_Game
+3. **VHS-оверлей** — UI Canvas (Screen Space Overlay): scanlines текстура + TextMeshPro с номером уровня внизу справа
+4. **Кнопки уровней** — несколько 3D кнопок слева для навигации между уровнями
+5. **Робот-подсказчик** — опционально, сложно
 
 ---
 
@@ -335,14 +314,8 @@ UI Canvas (Screen Space Overlay) поверх всей сцены:
 - Collider НЕ должен быть Trigger (`Is Trigger` = false)
 - Камера должна видеть объект (не перекрыт другим Collider'ом)
 
-### Как добавить World Space Canvas (для logs_Game и экрана клавиатуры)
-1. В Hierarchy выбери объект (например `logs_Game`) → правая кнопка → UI → Canvas
-2. В инспекторе Canvas → `Render Mode` → **World Space**
-3. Подстрой размер и позицию Canvas чтобы совпадал с экраном 3D модели
-4. Внутри Canvas: правая кнопка → UI → Text - TextMeshPro
-5. На этот TextMeshPro-объект ссылаться из CommandStation как `logsDisplay` (но тип будет `TextMeshProUGUI`, не `TextMeshPro`)
-
-**Примечание:** `TextMeshPro` (3D) и `TextMeshProUGUI` (Canvas) — разные компоненты! World Space Canvas использует `TextMeshProUGUI`. Нужно поменять тип поля в `CommandStation.cs` с `TextMeshPro` на `TextMeshProUGUI`.
+### Дисплеи (commandsDisplay / logsDisplay)
+Используются **3D TextMeshPro** объекты (не Canvas). Создаются через Hierarchy → 3D Object → Text - TextMeshPro, позиционируются прямо на поверхности 3D моделей. Тип поля в `CommandStation` — `TextMeshPro` (не `TextMeshProUGUI`).
 
 ### Размеры для Blender
 - Поле внутри gameboy: **8×8 юнитов** (ширина и глубина)
@@ -354,6 +327,17 @@ UI Canvas (Screen Space Overlay) поверх всей сцены:
 - Global Volume уже есть в сцене — можно добавлять post-processing эффекты
 - World Space Canvas работает в WebGL без проблем
 - `OnMouseDown` работает в WebGL
+
+### Настройки графики URP (текущие, файлы в Assets/Settings/)
+- **PC_RPAsset.asset** — главный URP ассет для PC:
+  - `m_MSAA: 4` — 4x сглаживание
+  - `m_ShadowDistance: 20` — дистанция теней
+  - `m_MainLightShadowmapResolution: 2048` — разрешение теней
+  - `m_SoftShadowsSupported: 1`, `m_SoftShadowQuality: 3` — мягкие тени High
+  - `m_ShadowNormalBias: 0.2` — тени не отрываются от объектов
+- **PC_Renderer.asset** — SSAO включён:
+  - `Intensity: 1.5`, `Radius: 0.6`, `Samples: 2` (High), `BlurQuality: 2`
+- **Global Volume** в сцене (SampleSceneProfile): Tonemapping ACES, Bloom 0.25, Vignette 0.2, Color Adjustments Contrast +25 Saturation +10
 
 ---
 
@@ -377,14 +361,18 @@ Assets/
 │   ├── Wall.prefab
 │   └── Fish.prefab      ← текущий префаб цели
 ├── Scripts/
-│   ├── CommandStation.cs    ← НОВЫЙ ⭐
-│   ├── PhysicalButton3D.cs  ← НОВЫЙ ⭐
+│   ├── CommandStation.cs    ← центр управления 3D кнопками ⭐
+│   ├── PhysicalButton3D.cs  ← универсальная 3D кнопка ⭐
+│   ├── LevelIntroUI.cs      ← попап памятки уровня ⭐
+│   ├── LevelIntroTrigger.cs ← триггер клика на button_Game
 │   ├── GameController.cs
 │   ├── GridManager.cs
-│   ├── UICommandBuilder.cs  ← СТАРЫЙ, будет удалён
 │   ├── PlayerAgent.cs
-│   ├── LevelIntroTrigger.cs
 │   └── TargetPoint.cs
+├── Settings/
+│   ├── PC_RPAsset.asset     ← URP настройки (MSAA, тени, SSAO)
+│   ├── PC_Renderer.asset    ← SSAO renderer feature
+│   └── SampleSceneProfile.asset ← Global Volume профиль
 └── Scenes/
     └── Level_1.unity
 ```
@@ -395,26 +383,24 @@ Assets/
 Level_1
 ├── Main Camera          ← Perspective, X rotation ~60°
 ├── Directional Light
-├── Global Volume        ← URP post-processing
-├── GridManager          ← генерирует поле 8×8
+├── Global Volume        ← URP post-processing (SampleSceneProfile)
+├── GridManager          ← генерирует поле 8×8 (buildInEditMode=false)
 ├── GameController       ← логика игры
-├── Canvas               ← СТАРЫЙ UI (будет удалён)
-│   ├── CommandInput
-│   ├── FeedBack_Image
-│   ├── RunButton        ← заменяется на 3D кнопку start
-│   ├── ResetButton      ← заменяется на 3D кнопку reboot
-│   ├── Up/Down/Left/Right/While  ← заменяются на 3D кнопки клавиатуры
-│   └── LevelIntroPanel
+├── Canvas               ← только LevelIntroPanel (Screen Space Overlay)
+│   └── LevelIntroPanel  ← попап памятки уровня (LevelIntroUI компонент)
 ├── EventSystem
-├── logs_Game            ← 3D дисплей логов (нужен World Space Canvas)
-├── Tiles                ← генерируется GridManager
-├── Walls                ← генерируется GridManager
-├── Props                ← генерируется GridManager
-├── button_Game          ← 3D кнопка памятки уровня (уже работает)
-├── BackGround           ← Plane с Table_Mat
-├── gameboy              ← 3D корпус устройства
-├── reboot               ← 3D кнопка Reset (нужен PhysicalButton3D)
-└── start                ← 3D кнопка Run (нужен PhysicalButton3D)
+├── Tiles / Walls / Props ← генерируется GridManager (пусто в edit mode)
+├── button_Game          ← 3D кнопка памятки уровня (LevelIntroTrigger)
+├── BackGround           ← Plane с Table_Mat (синий фон-blueprint)
+├── gameboy              ← 3D корпус устройства (Blender FBX)
+│   ├── start            ← PhysicalButton3D → CommandStation.TriggerRun
+│   └── reboot           ← PhysicalButton3D → TriggerReset / TriggerFullRestart
+├── Keyboard             ← 3D клавиатура (Blender FBX)
+│   └── Keyboard
+│       ├── Up / Down / Left / Right / While ← PhysicalButton3D → CommandStation.Add*
+│       └── Display_Commands → Commands (3D TextMeshPro = commandsDisplay)
+├── CommandStation       ← GameObject с CommandStation.cs
+└── logs_Game            ← 3D дисплей логов (LogsText = 3D TextMeshPro = logsDisplay)
 ```
 
 ---
@@ -423,13 +409,16 @@ Level_1
 
 Когда пользователь попросит прочитать CLAUDE.md и продолжить — скажи примерно следующее:
 
-**"Контекст загружен. Мы разрабатываем 3D механический интерфейс для игры. На чём остановились:**
+**"Контекст загружен. Игровая механика полностью работает: 3D клавиатура, кнопки, дисплеи, тени, SSAO — всё настроено.**
 
-**Ближайшая задача — заставить кнопки работать:**
-1. Создай 5 Cylinder в Hierarchy (`btn_Up`, `btn_Down`, `btn_Left`, `btn_Right`, `btn_While`)
-2. На каждый — Add Component → `PhysicalButton3D` + назначь `onClick` → `CommandStation.AddUp/Down/Left/Right/AddWhile`
-3. На `start` → `PhysicalButton3D.onClick` → `CommandStation.TriggerRun`
-4. На `reboot` → `PhysicalButton3D.onClick` → `CommandStation.TriggerReset`, `onHold` → `TriggerFullRestart`
-5. В инспекторе `CommandStation` → поле `Game` → перетащи `GameController`
+**Ближайшая задача — образовательный контент:**
 
-После этого нажми несколько кнопок команд → нажми `start` → персонаж должен пойти. Проверяем?"**
+Нужно заполнить тексты для памятки уровня. В Unity:
+1. Выбери `GameController` в Hierarchy
+2. В Inspector найди поле `Level Intro Info`
+3. Заполни `Title` (например: "Уровень 1 — Серверная часть")
+4. Заполни `Body` — описание уровня (что такое сервер, база данных, коммутатор)
+
+Также нужно расставить 3 цели на поле и назначить им координаты в `GameController.targetCells`.
+
+Хочешь начнём с текстов или сначала разберёмся с расстановкой целей?"**
